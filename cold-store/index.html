@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="IfM MET Industrial IoT exercise: design a vaccine cold-store monitor and see what happens when the compressor fails at 2 am.">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Cold-Store Monitor Builder</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Sans:wght@400;600&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: a phone-first worksheet; on wide screens the four choices sit left and the live verdict stays pinned right. */
+:root {
+  --bg: #FFFFFF; --panel: #F3F5F8; --line: #DCE1E7; --fg: #1A1F26; --muted: #4E5866;
+  --accent: #A35F00; --accent-bg: #FDF1DE; --accent-line: #F0A23B; --rule-a: #66CCFF; --rule-b: #8A9099;
+  --good: #1E7A45; --good-bg: #E4F4EA; --warn: #8A5A00; --warn-bg: #FFF3D6; --bad: #A3262A; --bad-bg: #FBE5E5;
+  --band: #E9F6EE; --chart: #1A1F26;
+  --display: "Space Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #11151B; --panel: #1A2029; --line: #2C3440; --fg: #E8ECF1; --muted: #A4AEBB;
+  --accent: #F2B25C; --accent-bg: #2B2214; --accent-line: #C9852A; --rule-a: #3A8FB8; --rule-b: #5A616B;
+  --good: #6FD39A; --good-bg: #16291F; --warn: #F2C66B; --warn-bg: #2C2414; --bad: #F08A8A; --bad-bg: #2E1717;
+  --band: #15261C; --chart: #E8ECF1; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #11151B; --panel: #1A2029; --line: #2C3440; --fg: #E8ECF1; --muted: #A4AEBB;
+  --accent: #F2B25C; --accent-bg: #2B2214; --accent-line: #C9852A; --rule-a: #3A8FB8; --rule-b: #5A616B;
+  --good: #6FD39A; --good-bg: #16291F; --warn: #F2C66B; --warn-bg: #2C2414; --bad: #F08A8A; --bad-bg: #2E1717;
+  --band: #15261C; --chart: #E8ECF1; color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--fg); font: 16px/1.5 var(--body); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 0 48px }
+.wrap { max-width: 1180px; margin: 0 auto }
+.rules { height: 7px; border-top: 3px solid var(--rule-a); border-bottom: 3px solid var(--rule-b); margin-top: 16px }
+header { padding-block: 20px 8px; display: grid; gap: 8px }
+.eyebrow { font: 600 12px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted) }
+h1 { font: 700 clamp(28px, 6vw, 44px)/1.05 var(--display); letter-spacing: -.02em; margin: 0; text-wrap: balance }
+.brief { max-width: 62ch; color: var(--muted); margin: 0 }
+.brief b { color: var(--fg) }
+.layout { display: grid; gap: 28px; margin-top: 20px }
+@media (min-width: 960px) { .layout { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); align-items: start } .result { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px) } }
+fieldset { border: 0; padding: 0; margin: 0 0 22px; min-width: 0 }
+legend { display: flex; gap: 10px; align-items: baseline; padding: 0; margin-bottom: 10px; font: 700 20px/1.2 var(--display) }
+legend .n { font: 700 13px/1 var(--mono); color: var(--accent); border: 1.5px solid var(--accent-line); border-radius: 6px; padding: 4px 6px }
+.opts { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)) }
+.opt { position: relative; display: block; cursor: pointer }
+.opt input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer }
+.card { height: 100%; border: 1.5px solid var(--line); border-radius: 10px; padding: 12px 14px; background: var(--bg); display: grid; gap: 4px; transition: border-color .15s, background .15s }
+.opt:hover .card { border-color: var(--accent-line) }
+.opt input:checked + .card { border-color: var(--accent-line); background: var(--accent-bg); box-shadow: inset 0 0 0 1px var(--accent-line) }
+.opt input:focus-visible + .card { outline: 3px solid var(--rule-a); outline-offset: 2px }
+.card .t { font-weight: 600; display: flex; justify-content: space-between; gap: 8px }
+.card .t span { font: 500 13px/1.6 var(--mono); color: var(--muted); white-space: nowrap }
+.card .d { font-size: 14px; color: var(--muted); line-height: 1.4 }
+.result { background: var(--panel); border-radius: 14px; padding: 20px; display: grid; gap: 18px; min-width: 0 }
+.code { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap }
+.code .lbl { font: 600 12px/1.2 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted) }
+.code .digits { font: 700 44px/1 var(--mono); letter-spacing: .18em; color: var(--fg) }
+.code button { font: 600 14px var(--body); color: var(--fg); background: var(--bg); border: 1.5px solid var(--line); border-radius: 8px; padding: 8px 12px; cursor: pointer }
+.code button:focus-visible { outline: 3px solid var(--rule-a) }
+.verdict { border-radius: 10px; padding: 12px 14px; font: 700 19px/1.3 var(--display) }
+.verdict small { display: block; font: 400 14px/1.4 var(--body); margin-top: 4px }
+.tone-good { background: var(--good-bg); color: var(--good) } .tone-warn { background: var(--warn-bg); color: var(--warn) } .tone-bad { background: var(--bad-bg); color: var(--bad) }
+.tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px }
+.tile { background: var(--bg); border-radius: 10px; padding: 10px 12px; min-width: 0 }
+.tile .k { font-size: 13px; color: var(--muted) }
+.tile .v { font: 700 24px/1.2 var(--display); font-variant-numeric: tabular-nums }
+.tile .v small { font: 400 13px var(--body); color: var(--muted) }
+h2 { font: 700 17px/1.2 var(--display); margin: 0 0 8px }
+.chart { background: var(--bg); border-radius: 10px; padding: 8px 8px 4px }
+.chart svg { display: block; width: 100%; height: auto }
+.story { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px }
+.story li { display: grid; grid-template-columns: 56px 1fr; gap: 8px; font-size: 14px }
+.story time { font: 600 13px/1.5 var(--mono); color: var(--accent) }
+.flags { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px }
+.flags li { font-size: 14px; line-height: 1.4; padding: 8px 10px 8px 12px; border-radius: 8px; border-left: 4px solid }
+.flags .warn { background: var(--warn-bg); border-color: var(--warn) } .flags .note { background: var(--bg); border-color: var(--line) } .flags .good { background: var(--good-bg); border-color: var(--good) }
+.mini { position: fixed; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px max(16px, env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); background: var(--fg); color: var(--bg); font: 600 15px/1.2 var(--body); border: 0; width: 100%; cursor: pointer; text-align: left }
+.mini b { font: 700 20px/1 var(--mono); letter-spacing: .12em }
+@media (min-width: 960px) { .mini { display: none } }
+@media (max-width: 959px) { body { padding-block: 0 80px } }
+.fine { font-size: 12px; color: var(--muted); margin: 0 }
+@media (prefers-reduced-motion: reduce) { .card { transition: none } }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <div class="rules" aria-hidden="true"></div>
+  <header>
+    <div class="eyebrow">IfM MET · Industrial IoT · Exercise</div>
+    <h1>Cold-store monitor builder</h1>
+    <p class="brief">A vaccine fridge must stay between <b>2 and 8 °C</b>. Pick one option in each step and watch what happens when the compressor fails at <b>02:00</b>. It starts on last year’s build. When you are happy, read your <b>design code</b> out.</p>
+  </header>
+
+  <div class="layout">
+    <form id="f" aria-label="Design choices">
+      <fieldset><legend><span class="n">1</span>Sense</legend><div class="opts" data-group="sensor"></div></fieldset>
+      <fieldset><legend><span class="n">2</span>Connect</legend><div class="opts" data-group="link"></div></fieldset>
+      <fieldset><legend><span class="n">3</span>Decide on the device</legend><div class="opts" data-group="edge"></div></fieldset>
+      <fieldset><legend><span class="n">4</span>Who acts at 3 am</legend><div class="opts" data-group="act"></div></fieldset>
+    </form>
+
+    <section class="result" id="result" aria-live="polite" aria-label="Your design">
+      <div class="code">
+        <div><div class="lbl">Your design code</div><div class="digits" id="code">1111</div></div>
+        <button type="button" id="copy">Copy code</button>
+      </div>
+      <div class="verdict" id="verdict"></div>
+      <div class="tiles">
+        <div class="tile"><div class="k">Time above 8 °C</div><div class="v" id="t-above"></div></div>
+        <div class="tile"><div class="k">False alarms</div><div class="v" id="t-false"></div></div>
+        <div class="tile"><div class="k">Kit per fridge</div><div class="v" id="t-cost"></div></div>
+        <div class="tile"><div class="k">Battery life</div><div class="v" id="t-batt"></div></div>
+      </div>
+      <div>
+        <h2>The night the compressor fails</h2>
+        <div class="chart"><svg id="chart" viewBox="0 0 360 150" role="img" aria-label="Fridge temperature from midnight to 8 am"></svg></div>
+        <ol class="story" id="story"></ol>
+      </div>
+      <div><h2>Things to know</h2><ul class="flags" id="flags"></ul></div>
+      <p class="fine">Figures are typical values for discussion, not a supplier quote. Running cost per year: <span id="t-run"></span>.</p>
+    </section>
+  </div>
+</div>
+<button type="button" class="mini" id="mini" aria-label="Jump to your result"><span>Code <b id="m-code">1111</b></span><span id="m-above"></span></button>
+
+<script>
+// Cold-store monitor model. Typical figures for teaching, not a quote.
+const OPT = {
+  sensor: [
+    { id: 1, name: "Basic probe", sub: "DS18B20 on a lead, ±0.5 °C", cost: 4, acc: 0.5, door: false },
+    { id: 2, name: "Calibrated probe", sub: "Lab-grade digital probe, ±0.1 °C, with a calibration certificate", cost: 35, acc: 0.1, door: false },
+    { id: 3, name: "Probe + door switch", sub: "DS18B20 plus a magnetic contact on the door", cost: 9, acc: 0.5, door: true },
+  ],
+  link: [
+    { id: 1, name: "Wi-Fi", sub: "Built into the ESP32; uses the site network", cost: 0, run: 0, batt: [0.5, 3, 5], cover: "poor" },
+    { id: 2, name: "Zigbee", sub: "Low-power mesh to a coordinator nearby", cost: 12, run: 0, batt: [6, 18, 24], cover: "patchy" },
+    { id: 3, name: "LoRaWAN", sub: "Long range, tiny messages, one gateway for the site", cost: 27, run: 0, batt: [8, 30, 36], cover: "good" },
+    { id: 4, name: "NB-IoT", sub: "Cellular IoT with its own SIM", cost: 12, run: 12, batt: [3, 36, 48], cover: "good" },
+  ],
+  edge: [
+    { id: 1, name: "Send everything", sub: "A reading every minute; the server decides", detect: 1, heartbeat: true, falseBase: 6 },
+    { id: 2, name: "Alert on threshold", sub: "A reading every 10 min; sends at once if over the limit", detect: 1, heartbeat: false, falseBase: 6 },
+    { id: 3, name: "Anomaly model on the chip", sub: "Learns normal door and compressor cycles; sends exceptions plus an hourly heartbeat", detect: -25, heartbeat: true, falseBase: 1 },
+  ],
+  act: [
+    { id: 1, name: "Dashboard only", sub: "Someone looks at it in the morning", resp: null, cost: 0, run: 0 },
+    { id: 2, name: "Text a group", sub: "SMS to the lab’s shared list", resp: 60, cost: 0, run: 6 },
+    { id: 3, name: "On-call rota", sub: "Pages the on-call person, escalates after 15 min", resp: 15, cost: 0, run: 0 },
+    { id: 4, name: "Automatic + on-call", sub: "Switches to a backup cooler, then pages on-call (human on the loop)", resp: 3, cost: 220, run: 0 },
+  ],
+};
+const BOARD = 12; // ESP32 board and enclosure, £
+const FAIL = 120, CROSS = 170, MORNING = 480; // minutes after midnight: compressor fails 02:00, passes 8 °C at 02:50, staff arrive 08:00
+const tempAt = (m, actAt) => {
+  if (m < FAIL) return 4.6 + Math.sin(m / 23) * 0.35;
+  const base = 4.6 + Math.sin(FAIL / 23) * 0.35;
+  const rise = (t) => base + (12 - base) * (1 - Math.exp(-(t - FAIL) / 90));
+  if (actAt == null || m < actAt) return rise(m);
+  const peak = rise(actAt);
+  return Math.max(4.6, peak - (m - actAt) * 0.08);
+};
+const clock = (m) => { const h = Math.floor(m / 60), mm = Math.round(m % 60); return String(h).padStart(2, "0") + ":" + String(mm).padStart(2, "0"); };
+function evaluate(c) {
+  const s = OPT.sensor[c[0] - 1], l = OPT.link[c[1] - 1], e = OPT.edge[c[2] - 1], a = OPT.act[c[3] - 1];
+  const battMonths = l.batt[c[2] - 1];
+  const swaps = 12 / battMonths;
+  const cost = BOARD + s.cost + l.cost + a.cost;
+  const running = l.run + a.run + swaps * 3;
+  let falseAlarms = e.falseBase * (s.acc >= 0.5 ? 1.5 : 1) * (s.door ? 0.3 : 1);
+  const falseRaw = falseAlarms;
+  falseAlarms = Math.max(0, Math.round(falseAlarms));
+  const detectAt = CROSS + e.detect;
+  let actAt = a.resp == null ? MORNING : detectAt + a.resp;
+  actAt = Math.max(actAt, FAIL + 5);
+  const above = Math.max(0, Math.round(actAt - CROSS));
+  const flags = [];
+  if (l.cover === "poor") flags.push(["warn", "Wi-Fi often fails in basement cold rooms: readings can be lost without anyone noticing."]);
+  if (l.cover === "patchy") flags.push(["note", "Zigbee needs a mains-powered router within a few rooms."]);
+  if (battMonths < 2) flags.push(["warn", "Battery lasts about " + Math.round(battMonths * 4) + " weeks: this design really needs mains power."]);
+  if (!e.heartbeat) flags.push(["warn", "No heartbeat: if the node dies, silence looks the same as “all fine”."]);
+  if (a.resp == null) flags.push(["warn", "Nobody is told at night. The alarm waits for the morning."]);
+  if (s.acc >= 0.5 && !s.door) flags.push(["note", "±0.5 °C near an 8 °C limit: set the alert at 7.5 °C, or accept missed edges."]);
+  if (c[3] === 3) flags.push(["note", "Needs a staffed on-call rota and a clear escalation list."]);
+  if (c[3] === 4) flags.push(["good", "Contains the problem before a person is awake. The person still decides about the stock."]);
+  if (s.door) flags.push(["good", "The door switch tells a door left open from a failed compressor."]);
+  if (e.detect < 0) flags.push(["good", "Spots the compressor failing before the temperature crosses the limit."]);
+  if (l.run > 0) flags.push(["note", "SIM contract: about £" + l.run + " a year per fridge."]);
+  let verdict, tone;
+  if (above === 0) { verdict = "Stock stays within 2–8 °C."; tone = "good"; }
+  else if (above <= 30) { verdict = "Short excursion: report it and get the stock assessed."; tone = "warn"; }
+  else { verdict = "Long excursion: expect the stock to be quarantined."; tone = "bad"; }
+  const story = [
+    [FAIL, "Compressor fails. Temperature starts to rise."],
+    e.detect < 0 ? [detectAt, "Node spots the failure pattern and raises an alert."] : [CROSS, "Fridge passes 8 °C."],
+    e.detect < 0 ? [CROSS, actAt <= CROSS ? "Would have passed 8 °C here; it does not." : "Fridge passes 8 °C."] : [detectAt, a.resp == null ? "Reading reaches the dashboard. Nobody is looking." : "Alert sent."],
+    [actAt, a.resp == null ? "First person in sees the dashboard." : c[3] === 4 ? "Backup cooler takes over; on-call is paged." : "Someone acts."],
+  ].sort((x, y) => x[0] - y[0]);
+  return { s, l, e, a, falseRaw, cost, running, battMonths, falseAlarms, detectAt, actAt, above, flags, verdict, tone, story };
+}
+const fmtBatt = (m) => (m < 1 ? Math.round(m * 4) + " weeks" : m < 12 ? m + " months" : m % 12 === 0 ? m / 12 + (m === 12 ? " year" : " years") : (m / 12).toFixed(1) + " years");
+const fmtMins = (m) => (m === 0 ? "0 min" : m < 60 ? m + " min" : Math.floor(m / 60) + " h " + String(m % 60).padStart(2, "0") + " min");
+
+const groups = ["sensor", "link", "edge", "act"];
+const choice = [1, 1, 1, 1];
+const money = (n) => "£" + Math.round(n);
+for (const [gi, g] of groups.entries()) {
+  const box = document.querySelector('[data-group="' + g + '"]');
+  for (const o of OPT[g]) {
+    const price = g === "edge" ? "" : (o.cost ? money(o.cost) : "£0") + (o.run ? " + " + money(o.run) + "/yr" : "");
+    const lab = document.createElement("label");
+    lab.className = "opt";
+    lab.innerHTML = '<input type="radio" name="' + g + '" id="' + g + o.id + '" value="' + o.id + '"' + (o.id === 1 ? " checked" : "") + '><span class="card"><span class="t"></span><span class="d"></span></span>';
+    lab.querySelector(".t").textContent = o.name;
+    if (price) { const p = document.createElement("span"); p.textContent = price; lab.querySelector(".t").appendChild(p); }
+    lab.querySelector(".d").textContent = o.sub;
+    lab.querySelector("input").addEventListener("change", () => { choice[gi] = o.id; render(); });
+    box.appendChild(lab);
+  }
+}
+const $ = (id) => document.getElementById(id);
+function chart(r) {
+  const W = 360, H = 150, L = 30, R = 8, T = 10, B = 22, t0 = 0, t1 = 480, y0 = 2, y1 = 13;
+  const x = (m) => L + (m - t0) / (t1 - t0) * (W - L - R), y = (v) => T + (y1 - v) / (y1 - y0) * (H - T - B);
+  let s = "";
+  s += '<rect x="' + L + '" y="' + y(8) + '" width="' + (W - L - R) + '" height="' + (y(2) - y(8)) + '" fill="var(--band)"/>';
+  for (const v of [2, 8, 12]) s += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y(v) + '" y2="' + y(v) + '" stroke="var(--line)" stroke-width="1"' + (v === 8 ? ' stroke-dasharray="4 3"' : "") + '/><text x="' + (L - 5) + '" y="' + (y(v) + 4) + '" font-size="10" text-anchor="end" fill="var(--muted)" font-family="var(--mono)">' + v + '°</text>';
+  for (const m of [0, 120, 240, 360, 480]) s += '<text x="' + x(m) + '" y="' + (H - 6) + '" font-size="10" text-anchor="' + (m === 480 ? "end" : m === 0 ? "start" : "middle") + '" fill="var(--muted)" font-family="var(--mono)">' + clock(m) + '</text>';
+  const pts = []; for (let m = 0; m <= 480; m += 4) pts.push([x(m), y(tempAt(m, r.actAt))]);
+  const hot = pts.filter(([, py]) => py < y(8));
+  if (r.above > 0) { const a = x(CROSS), b = x(Math.min(480, r.actAt + 40)); let d = "M" + a + " " + y(8); for (let m = CROSS; m <= Math.min(480, r.actAt + 60); m += 2) { const v = tempAt(m, r.actAt); if (v < 8 && m > r.actAt) break; d += "L" + x(m) + " " + y(Math.max(8, v)); } d += "V" + y(8) + "Z"; s += '<path d="' + d + '" fill="var(--bad)" opacity=".18"/>'; }
+  s += '<path d="M' + pts.map((p) => p[0].toFixed(1) + " " + p[1].toFixed(1)).join("L") + '" fill="none" stroke="var(--chart)" stroke-width="1.8" stroke-linejoin="round"/>';
+  for (const [i, [m, tag]] of [[r.detectAt, "alert"], [r.actAt, "act"]].entries()) if (m <= 480 && !(i === 1 && r.actAt === MORNING && false)) s += '<line x1="' + x(m) + '" x2="' + x(m) + '" y1="' + T + '" y2="' + (H - B) + '" stroke="var(--accent-line)" stroke-width="1.5"/><text x="' + (m > 400 ? x(m) - 3 : x(m) + 3) + '" text-anchor="' + (m > 400 ? "end" : "start") + '" y="' + (T + 9 + i * 12) + '" font-size="10" fill="var(--accent)" font-family="var(--mono)">' + tag + '</text>';
+  $("chart").innerHTML = s;
+}
+function render() {
+  const r = evaluate(choice);
+  $("code").textContent = choice.join("");
+  const v = $("verdict"); v.className = "verdict tone-" + r.tone; v.textContent = r.verdict;
+  const sm = document.createElement("small"); sm.textContent = r.above === 0 ? "Action at " + clock(r.actAt) + ", before the fridge reaches 8 °C." : "Above 8 °C from 02:50 until " + clock(r.actAt) + "."; v.appendChild(sm);
+  $("t-above").textContent = fmtMins(r.above);
+  $("m-code").textContent = choice.join(""); $("m-above").textContent = fmtMins(r.above) + " above 8 °C ↓";
+  $("t-false").innerHTML = ""; $("t-false").append(r.falseRaw < 0.5 ? "under 1" : String(r.falseAlarms)); const fs = document.createElement("small"); fs.textContent = " a month"; $("t-false").appendChild(fs);
+  $("t-cost").textContent = money(r.cost);
+  $("t-batt").textContent = fmtBatt(r.battMonths);
+  $("t-run").textContent = money(r.running);
+  chart(r);
+  const st = $("story"); st.innerHTML = "";
+  for (const [m, text] of r.story) { const li = document.createElement("li"); const t = document.createElement("time"); t.textContent = clock(m); const p = document.createElement("span"); p.textContent = text; li.append(t, p); st.appendChild(li); }
+  const fl = $("flags"); fl.innerHTML = "";
+  for (const [k, text] of r.flags) { const li = document.createElement("li"); li.className = k; li.textContent = text; fl.appendChild(li); }
+}
+$("copy").addEventListener("click", async () => {
+  const b = $("copy");
+  try { await navigator.clipboard.writeText(choice.join("")); b.textContent = "Copied"; }
+  catch { const sel = getSelection(), rg = document.createRange(); rg.selectNodeContents($("code")); sel.removeAllRanges(); sel.addRange(rg); b.textContent = "Selected"; }
+  setTimeout(() => (b.textContent = "Copy code"), 1600);
+});
+$("mini").addEventListener("click", () => $("result").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }));
+$("f").addEventListener("submit", (e) => e.preventDefault());
+render();
+</script>
+
+</body>
+</html>
