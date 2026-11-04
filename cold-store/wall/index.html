@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Cold-Store Results Wall</title>
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Sans:wght@400;600&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: a projector wall; entry strip on top for the lecturer, then one card per pair in a sortable grid. */
+:root {
+  --bg: #FFFFFF; --panel: #F3F5F8; --line: #DCE1E7; --fg: #1A1F26; --muted: #4E5866;
+  --accent: #A35F00; --accent-bg: #FDF1DE; --accent-line: #F0A23B; --rule-a: #66CCFF; --rule-b: #8A9099;
+  --good: #1E7A45; --good-bg: #E4F4EA; --warn: #8A5A00; --warn-bg: #FFF3D6; --bad: #A3262A; --bad-bg: #FBE5E5;
+  --display: "Space Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #11151B; --panel: #1A2029; --line: #2C3440; --fg: #E8ECF1; --muted: #A4AEBB;
+  --accent: #F2B25C; --accent-bg: #2B2214; --accent-line: #C9852A; --rule-a: #3A8FB8; --rule-b: #5A616B;
+  --good: #6FD39A; --good-bg: #16291F; --warn: #F2C66B; --warn-bg: #2C2414; --bad: #F08A8A; --bad-bg: #2E1717; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #11151B; --panel: #1A2029; --line: #2C3440; --fg: #E8ECF1; --muted: #A4AEBB;
+  --accent: #F2B25C; --accent-bg: #2B2214; --accent-line: #C9852A; --rule-a: #3A8FB8; --rule-b: #5A616B;
+  --good: #6FD39A; --good-bg: #16291F; --warn: #F2C66B; --warn-bg: #2C2414; --bad: #F08A8A; --bad-bg: #2E1717; color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--fg); font: 16px/1.5 var(--body); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 0 40px }
+.wrap { max-width: 1600px; margin: 0 auto }
+.rules { height: 7px; border-top: 3px solid var(--rule-a); border-bottom: 3px solid var(--rule-b); margin-top: 16px }
+header { display: flex; justify-content: space-between; align-items: center; gap: 24px; flex-wrap: wrap; padding-block: 16px }
+.eyebrow { font: 600 12px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted) }
+h1 { font: 700 clamp(26px, 4vw, 40px)/1.1 var(--display); letter-spacing: -.02em; margin: 6px 0 0; text-wrap: balance }
+.scan { display: flex; align-items: center; gap: 14px; background: var(--panel); border-radius: 12px; padding: 10px 14px 10px 10px }
+.scan img { width: 96px; height: 96px; border-radius: 6px; display: block }
+.scan p { margin: 0; font-size: 14px; color: var(--muted); max-width: 26ch }
+.scan b { color: var(--fg) }
+.entry { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; background: var(--panel); border-radius: 12px; padding: 14px }
+.entry label { display: grid; gap: 4px; font-size: 13px; color: var(--muted) }
+.entry input { font: 600 18px var(--body); color: var(--fg); background: var(--bg); border: 1.5px solid var(--line); border-radius: 8px; padding: 8px 10px; min-width: 0 }
+#team { width: min(260px, 100%) }
+#code { width: 130px; font-family: var(--mono); letter-spacing: .15em }
+.entry input:focus-visible, button:focus-visible { outline: 3px solid var(--rule-a); outline-offset: 1px }
+button { font: 600 15px var(--body); border-radius: 8px; padding: 10px 14px; cursor: pointer; border: 1.5px solid var(--line); background: var(--bg); color: var(--fg) }
+button.primary { background: var(--fg); color: var(--bg); border-color: var(--fg) }
+.msg { font-size: 14px; color: var(--muted); flex: 1 1 200px; min-width: 0 }
+.msg.err { color: var(--bad) }
+.tools { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; align-items: center; margin-block: 16px }
+.sort { display: flex; flex-wrap: wrap; gap: 6px; align-items: center }
+.sort span { font-size: 13px; color: var(--muted); margin-right: 4px }
+.sort button { padding: 6px 12px; font-size: 14px; border-radius: 999px }
+.sort button[aria-pressed="true"] { background: var(--accent-bg); border-color: var(--accent-line); color: var(--fg) }
+.grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)) }
+.card { border: 1.5px solid var(--line); border-radius: 12px; padding: 14px 16px; display: grid; gap: 10px; background: var(--bg); min-width: 0; position: relative }
+.card.example { border-style: dashed }
+.card .top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px }
+.card h3 { font: 700 22px/1.15 var(--display); margin: 0; overflow-wrap: anywhere }
+.card .cd { font: 700 15px var(--mono); letter-spacing: .14em; color: var(--muted) }
+.picks { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: 14px; color: var(--muted) }
+.picks b { color: var(--fg); font-weight: 600 }
+.ver { border-radius: 8px; padding: 6px 10px; font: 700 15px/1.3 var(--display) }
+.tone-good { background: var(--good-bg); color: var(--good) } .tone-warn { background: var(--warn-bg); color: var(--warn) } .tone-bad { background: var(--bad-bg); color: var(--bad) }
+.nums { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 12px }
+.nums div { min-width: 0 }
+.nums .k { font-size: 12px; color: var(--muted) }
+.nums .v { font: 700 20px/1.2 var(--display); font-variant-numeric: tabular-nums }
+.best { display: flex; flex-wrap: wrap; gap: 6px }
+.best span { font: 600 12px/1 var(--mono); padding: 5px 8px; border-radius: 999px; background: var(--accent-bg); color: var(--accent); border: 1px solid var(--accent-line) }
+.x { justify-self: end; padding: 4px 10px; font-size: 13px; color: var(--muted) }
+.empty { border: 2px dashed var(--line); border-radius: 12px; padding: 22px; color: var(--muted); display: grid; gap: 6px; align-content: start }
+.empty b { color: var(--fg); font: 700 18px var(--display) }
+.confirm { display: flex; gap: 8px; align-items: center; font-size: 14px }
+.danger { color: var(--bad); border-color: var(--bad) }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <div class="rules" aria-hidden="true"></div>
+  <header>
+    <div><div class="eyebrow">IfM MET · Industrial IoT · Results</div><h1>Cold-store designs, side by side</h1></div>
+    <div class="scan"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0MSA0MSIgc2hhcGUtcmVuZGVyaW5nPSJjcmlzcEVkZ2VzIj48cmVjdCB3aWR0aD0iNDEiIGhlaWdodD0iNDEiIGZpbGw9IiNmZmZmZmYiLz48cGF0aCBkPSJNMiAyaDF2MWgtMXpNMyAyaDF2MWgtMXpNNCAyaDF2MWgtMXpNNSAyaDF2MWgtMXpNNiAyaDF2MWgtMXpNNyAyaDF2MWgtMXpNOCAyaDF2MWgtMXpNMTEgMmgxdjFoLTF6TTE0IDJoMXYxaC0xek0xNiAyaDF2MWgtMXpNMTkgMmgxdjFoLTF6TTIwIDJoMXYxaC0xek0yMiAyaDF2MWgtMXpNMjMgMmgxdjFoLTF6TTI0IDJoMXYxaC0xek0yNiAyaDF2MWgtMXpNMzIgMmgxdjFoLTF6TTMzIDJoMXYxaC0xek0zNCAyaDF2MWgtMXpNMzUgMmgxdjFoLTF6TTM2IDJoMXYxaC0xek0zNyAyaDF2MWgtMXpNMzggMmgxdjFoLTF6TTIgM2gxdjFoLTF6TTggM2gxdjFoLTF6TTEzIDNoMXYxaC0xek0xOCAzaDF2MWgtMXpNMTkgM2gxdjFoLTF6TTIxIDNoMXYxaC0xek0yMyAzaDF2MWgtMXpNMjQgM2gxdjFoLTF6TTI4IDNoMXYxaC0xek0yOSAzaDF2MWgtMXpNMzIgM2gxdjFoLTF6TTM4IDNoMXYxaC0xek0yIDRoMXYxaC0xek00IDRoMXYxaC0xek01IDRoMXYxaC0xek02IDRoMXYxaC0xek04IDRoMXYxaC0xek0xMCA0aDF2MWgtMXpNMTEgNGgxdjFoLTF6TTEyIDRoMXYxaC0xek0xMyA0aDF2MWgtMXpNMjAgNGgxdjFoLTF6TTIxIDRoMXYxaC0xek0yMiA0aDF2MWgtMXpNMjMgNGgxdjFoLTF6TTI0IDRoMXYxaC0xek0yNiA0aDF2MWgtMXpNMjggNGgxdjFoLTF6TTI5IDRoMXYxaC0xek0zMCA0aDF2MWgtMXpNMzIgNGgxdjFoLTF6TTM0IDRoMXYxaC0xek0zNSA0aDF2MWgtMXpNMzYgNGgxdjFoLTF6TTM4IDRoMXYxaC0xek0yIDVoMXYxaC0xek00IDVoMXYxaC0xek01IDVoMXYxaC0xek02IDVoMXYxaC0xek04IDVoMXYxaC0xek0xMCA1aDF2MWgtMXpNMTEgNWgxdjFoLTF6TTEyIDVoMXYxaC0xek0xMyA1aDF2MWgtMXpNMTQgNWgxdjFoLTF6TTE1IDVoMXYxaC0xek0xNiA1aDF2MWgtMXpNMTggNWgxdjFoLTF6TTE5IDVoMXYxaC0xek0yMSA1aDF2MWgtMXpNMjQgNWgxdjFoLTF6TTI2IDVoMXYxaC0xek0yNyA1aDF2MWgtMXpNMjggNWgxdjFoLTF6TTI5IDVoMXYxaC0xek0zMCA1aDF2MWgtMXpNMzIgNWgxdjFoLTF6TTM0IDVoMXYxaC0xek0zNSA1aDF2MWgtMXpNMzYgNWgxdjFoLTF6TTM4IDVoMXYxaC0xek0yIDZoMXYxaC0xek00IDZoMXYxaC0xek01IDZoMXYxaC0xek02IDZoMXYxaC0xek04IDZoMXYxaC0xek0xMCA2aDF2MWgtMXpNMTEgNmgxdjFoLTF6TTEzIDZoMXYxaC0xek0xNSA2aDF2MWgtMXpNMTYgNmgxdjFoLTF6TTIwIDZoMXYxaC0xek0yMSA2aDF2MWgtMXpNMjUgNmgxdjFoLTF6TTI3IDZoMXYxaC0xek0yOCA2aDF2MWgtMXpNMzAgNmgxdjFoLTF6TTMyIDZoMXYxaC0xek0zNCA2aDF2MWgtMXpNMzUgNmgxdjFoLTF6TTM2IDZoMXYxaC0xek0zOCA2aDF2MWgtMXpNMiA3aDF2MWgtMXpNOCA3aDF2MWgtMXpNMTAgN2gxdjFoLTF6TTEzIDdoMXYxaC0xek0xNSA3aDF2MWgtMXpNMTcgN2gxdjFoLTF6TTIwIDdoMXYxaC0xek0yNCA3aDF2MWgtMXpNMjYgN2gxdjFoLTF6TTI4IDdoMXYxaC0xek0yOSA3aDF2MWgtMXpNMzIgN2gxdjFoLTF6TTM4IDdoMXYxaC0xek0yIDhoMXYxaC0xek0zIDhoMXYxaC0xek00IDhoMXYxaC0xek01IDhoMXYxaC0xek02IDhoMXYxaC0xek03IDhoMXYxaC0xek04IDhoMXYxaC0xek0xMCA4aDF2MWgtMXpNMTIgOGgxdjFoLTF6TTE0IDhoMXYxaC0xek0xNiA4aDF2MWgtMXpNMTggOGgxdjFoLTF6TTIwIDhoMXYxaC0xek0yMiA4aDF2MWgtMXpNMjQgOGgxdjFoLTF6TTI2IDhoMXYxaC0xek0yOCA4aDF2MWgtMXpNMzAgOGgxdjFoLTF6TTMyIDhoMXYxaC0xek0zMyA4aDF2MWgtMXpNMzQgOGgxdjFoLTF6TTM1IDhoMXYxaC0xek0zNiA4aDF2MWgtMXpNMzcgOGgxdjFoLTF6TTM4IDhoMXYxaC0xek0xMCA5aDF2MWgtMXpNMTIgOWgxdjFoLTF6TTEzIDloMXYxaC0xek0xNCA5aDF2MWgtMXpNMjEgOWgxdjFoLTF6TTI1IDloMXYxaC0xek0yNiA5aDF2MWgtMXpNMjggOWgxdjFoLTF6TTIgMTBoMXYxaC0xek00IDEwaDF2MWgtMXpNNSAxMGgxdjFoLTF6TTYgMTBoMXYxaC0xek03IDEwaDF2MWgtMXpNOCAxMGgxdjFoLTF6TTExIDEwaDF2MWgtMXpNMTIgMTBoMXYxaC0xek0xMyAxMGgxdjFoLTF6TTE0IDEwaDF2MWgtMXpNMTYgMTBoMXYxaC0xek0xNyAxMGgxdjFoLTF6TTIwIDEwaDF2MWgtMXpNMjIgMTBoMXYxaC0xek0yMyAxMGgxdjFoLTF6TTI0IDEwaDF2MWgtMXpNMjUgMTBoMXYxaC0xek0yNiAxMGgxdjFoLTF6TTI3IDEwaDF2MWgtMXpNMjggMTBoMXYxaC0xek0yOSAxMGgxdjFoLTF6TTMyIDEwaDF2MWgtMXpNMzMgMTBoMXYxaC0xek0zNCAxMGgxdjFoLTF6TTM1IDEwaDF2MWgtMXpNMzYgMTBoMXYxaC0xek00IDExaDF2MWgtMXpNMTQgMTFoMXYxaC0xek0xNiAxMWgxdjFoLTF6TTE3IDExaDF2MWgtMXpNMTggMTFoMXYxaC0xek0xOSAxMWgxdjFoLTF6TTIzIDExaDF2MWgtMXpNMjggMTFoMXYxaC0xek0zMCAxMWgxdjFoLTF6TTMzIDExaDF2MWgtMXpNMzcgMTFoMXYxaC0xek0zIDEyaDF2MWgtMXpNNCAxMmgxdjFoLTF6TTUgMTJoMXYxaC0xek03IDEyaDF2MWgtMXpNOCAxMmgxdjFoLTF6TTEwIDEyaDF2MWgtMXpNMTIgMTJoMXYxaC0xek0xMyAxMmgxdjFoLTF6TTE0IDEyaDF2MWgtMXpNMTUgMTJoMXYxaC0xek0xNiAxMmgxdjFoLTF6TTIwIDEyaDF2MWgtMXpNMjIgMTJoMXYxaC0xek0yMyAxMmgxdjFoLTF6TTI0IDEyaDF2MWgtMXpNMjUgMTJoMXYxaC0xek0yNiAxMmgxdjFoLTF6TTI5IDEyaDF2MWgtMXpNMzIgMTJoMXYxaC0xek0zMyAxMmgxdjFoLTF6TTM2IDEyaDF2MWgtMXpNMzcgMTJoMXYxaC0xek0zOCAxMmgxdjFoLTF6TTIgMTNoMXYxaC0xek00IDEzaDF2MWgtMXpNNSAxM2gxdjFoLTF6TTEzIDEzaDF2MWgtMXpNMTggMTNoMXYxaC0xek0yMyAxM2gxdjFoLTF6TTI0IDEzaDF2MWgtMXpNMjUgMTNoMXYxaC0xek0yOSAxM2gxdjFoLTF6TTMwIDEzaDF2MWgtMXpNMzEgMTNoMXYxaC0xek0zMiAxM2gxdjFoLTF6TTM0IDEzaDF2MWgtMXpNMzggMTNoMXYxaC0xek0yIDE0aDF2MWgtMXpNNCAxNGgxdjFoLTF6TTYgMTRoMXYxaC0xek04IDE0aDF2MWgtMXpNOSAxNGgxdjFoLTF6TTEyIDE0aDF2MWgtMXpNMTMgMTRoMXYxaC0xek0xNSAxNGgxdjFoLTF6TTE2IDE0aDF2MWgtMXpNMTkgMTRoMXYxaC0xek0yNSAxNGgxdjFoLTF6TTI2IDE0aDF2MWgtMXpNMjcgMTRoMXYxaC0xek0yOCAxNGgxdjFoLTF6TTMwIDE0aDF2MWgtMXpNMzEgMTRoMXYxaC0xek0zMiAxNGgxdjFoLTF6TTM0IDE0aDF2MWgtMXpNMzcgMTRoMXYxaC0xek0zOCAxNGgxdjFoLTF6TTIgMTVoMXYxaC0xek05IDE1aDF2MWgtMXpNMTAgMTVoMXYxaC0xek0xMSAxNWgxdjFoLTF6TTEzIDE1aDF2MWgtMXpNMTYgMTVoMXYxaC0xek0xOCAxNWgxdjFoLTF6TTE5IDE1aDF2MWgtMXpNMjAgMTVoMXYxaC0xek0yMSAxNWgxdjFoLTF6TTIyIDE1aDF2MWgtMXpNMjMgMTVoMXYxaC0xek0yNSAxNWgxdjFoLTF6TTMwIDE1aDF2MWgtMXpNMzMgMTVoMXYxaC0xek0yIDE2aDF2MWgtMXpNMyAxNmgxdjFoLTF6TTQgMTZoMXYxaC0xek01IDE2aDF2MWgtMXpNOCAxNmgxdjFoLTF6TTkgMTZoMXYxaC0xek0xMSAxNmgxdjFoLTF6TTEzIDE2aDF2MWgtMXpNMTYgMTZoMXYxaC0xek0xNyAxNmgxdjFoLTF6TTE4IDE2aDF2MWgtMXpNMTkgMTZoMXYxaC0xek0yMiAxNmgxdjFoLTF6TTIzIDE2aDF2MWgtMXpNMjYgMTZoMXYxaC0xek0yNyAxNmgxdjFoLTF6TTI5IDE2aDF2MWgtMXpNMzAgMTZoMXYxaC0xek0zMSAxNmgxdjFoLTF6TTMzIDE2aDF2MWgtMXpNMzQgMTZoMXYxaC0xek0zNSAxNmgxdjFoLTF6TTM3IDE2aDF2MWgtMXpNMzggMTZoMXYxaC0xek01IDE3aDF2MWgtMXpNNiAxN2gxdjFoLTF6TTEwIDE3aDF2MWgtMXpNMTEgMTdoMXYxaC0xek0xNCAxN2gxdjFoLTF6TTE5IDE3aDF2MWgtMXpNMjAgMTdoMXYxaC0xek0yMiAxN2gxdjFoLTF6TTIzIDE3aDF2MWgtMXpNMjQgMTdoMXYxaC0xek0yNSAxN2gxdjFoLTF6TTI2IDE3aDF2MWgtMXpNMjggMTdoMXYxaC0xek0yOSAxN2gxdjFoLTF6TTMxIDE3aDF2MWgtMXpNMzMgMTdoMXYxaC0xek0zNCAxN2gxdjFoLTF6TTIgMThoMXYxaC0xek0zIDE4aDF2MWgtMXpNNiAxOGgxdjFoLTF6TTggMThoMXYxaC0xek0xMiAxOGgxdjFoLTF6TTEzIDE4aDF2MWgtMXpNMTQgMThoMXYxaC0xek0xNyAxOGgxdjFoLTF6TTE4IDE4aDF2MWgtMXpNMjMgMThoMXYxaC0xek0yNiAxOGgxdjFoLTF6TTI3IDE4aDF2MWgtMXpNMjggMThoMXYxaC0xek0yOSAxOGgxdjFoLTF6TTMxIDE4aDF2MWgtMXpNMzIgMThoMXYxaC0xek0zNiAxOGgxdjFoLTF6TTM3IDE4aDF2MWgtMXpNNCAxOWgxdjFoLTF6TTYgMTloMXYxaC0xek0xMiAxOWgxdjFoLTF6TTE2IDE5aDF2MWgtMXpNMTcgMTloMXYxaC0xek0xOSAxOWgxdjFoLTF6TTIwIDE5aDF2MWgtMXpNMjIgMTloMXYxaC0xek0yNCAxOWgxdjFoLTF6TTI2IDE5aDF2MWgtMXpNMjcgMTloMXYxaC0xek0yOCAxOWgxdjFoLTF6TTMwIDE5aDF2MWgtMXpNMzEgMTloMXYxaC0xek0zMiAxOWgxdjFoLTF6TTMzIDE5aDF2MWgtMXpNMzYgMTloMXYxaC0xek0zNyAxOWgxdjFoLTF6TTIgMjBoMXYxaC0xek01IDIwaDF2MWgtMXpNNiAyMGgxdjFoLTF6TTggMjBoMXYxaC0xek05IDIwaDF2MWgtMXpNMTEgMjBoMXYxaC0xek0xMiAyMGgxdjFoLTF6TTEzIDIwaDF2MWgtMXpNMTQgMjBoMXYxaC0xek0xNiAyMGgxdjFoLTF6TTE3IDIwaDF2MWgtMXpNMTggMjBoMXYxaC0xek0xOSAyMGgxdjFoLTF6TTIxIDIwaDF2MWgtMXpNMjQgMjBoMXYxaC0xek0yOCAyMGgxdjFoLTF6TTI5IDIwaDF2MWgtMXpNMzAgMjBoMXYxaC0xek0zMSAyMGgxdjFoLTF6TTMzIDIwaDF2MWgtMXpNMzQgMjBoMXYxaC0xek0zNiAyMGgxdjFoLTF6TTM3IDIwaDF2MWgtMXpNMzggMjBoMXYxaC0xek01IDIxaDF2MWgtMXpNNyAyMWgxdjFoLTF6TTEwIDIxaDF2MWgtMXpNMTYgMjFoMXYxaC0xek0xNyAyMWgxdjFoLTF6TTIxIDIxaDF2MWgtMXpNMjIgMjFoMXYxaC0xek0yMyAyMWgxdjFoLTF6TTI1IDIxaDF2MWgtMXpNMjggMjFoMXYxaC0xek0zMCAyMWgxdjFoLTF6TTMzIDIxaDF2MWgtMXpNMzQgMjFoMXYxaC0xek0zOCAyMWgxdjFoLTF6TTUgMjJoMXYxaC0xek02IDIyaDF2MWgtMXpNNyAyMmgxdjFoLTF6TTggMjJoMXYxaC0xek0xMCAyMmgxdjFoLTF6TTE1IDIyaDF2MWgtMXpNMTYgMjJoMXYxaC0xek0xNyAyMmgxdjFoLTF6TTE5IDIyaDF2MWgtMXpNMjAgMjJoMXYxaC0xek0yMSAyMmgxdjFoLTF6TTIyIDIyaDF2MWgtMXpNMjQgMjJoMXYxaC0xek0yNSAyMmgxdjFoLTF6TTI3IDIyaDF2MWgtMXpNMjggMjJoMXYxaC0xek0zMSAyMmgxdjFoLTF6TTMyIDIyaDF2MWgtMXpNMzQgMjJoMXYxaC0xek0zNSAyMmgxdjFoLTF6TTM2IDIyaDF2MWgtMXpNMiAyM2gxdjFoLTF6TTQgMjNoMXYxaC0xek03IDIzaDF2MWgtMXpNOSAyM2gxdjFoLTF6TTExIDIzaDF2MWgtMXpNMTQgMjNoMXYxaC0xek0xNSAyM2gxdjFoLTF6TTE4IDIzaDF2MWgtMXpNMjAgMjNoMXYxaC0xek0yMSAyM2gxdjFoLTF6TTIyIDIzaDF2MWgtMXpNMjUgMjNoMXYxaC0xek0yOCAyM2gxdjFoLTF6TTMwIDIzaDF2MWgtMXpNMzUgMjNoMXYxaC0xek0yIDI0aDF2MWgtMXpNNSAyNGgxdjFoLTF6TTcgMjRoMXYxaC0xek04IDI0aDF2MWgtMXpNMTMgMjRoMXYxaC0xek0xNCAyNGgxdjFoLTF6TTE2IDI0aDF2MWgtMXpNMTcgMjRoMXYxaC0xek0xOCAyNGgxdjFoLTF6TTIwIDI0aDF2MWgtMXpNMjQgMjRoMXYxaC0xek0yOCAyNGgxdjFoLTF6TTI5IDI0aDF2MWgtMXpNMzEgMjRoMXYxaC0xek0zMiAyNGgxdjFoLTF6TTMzIDI0aDF2MWgtMXpNMzQgMjRoMXYxaC0xek0zNSAyNGgxdjFoLTF6TTM3IDI0aDF2MWgtMXpNMzggMjRoMXYxaC0xek00IDI1aDF2MWgtMXpNNSAyNWgxdjFoLTF6TTYgMjVoMXYxaC0xek0xMCAyNWgxdjFoLTF6TTEyIDI1aDF2MWgtMXpNMTMgMjVoMXYxaC0xek0xNiAyNWgxdjFoLTF6TTE3IDI1aDF2MWgtMXpNMjkgMjVoMXYxaC0xek0zMCAyNWgxdjFoLTF6TTMyIDI1aDF2MWgtMXpNMzMgMjVoMXYxaC0xek0zNCAyNWgxdjFoLTF6TTM3IDI1aDF2MWgtMXpNMzggMjVoMXYxaC0xek0yIDI2aDF2MWgtMXpNNiAyNmgxdjFoLTF6TTggMjZoMXYxaC0xek05IDI2aDF2MWgtMXpNMTEgMjZoMXYxaC0xek0xMiAyNmgxdjFoLTF6TTEzIDI2aDF2MWgtMXpNMTYgMjZoMXYxaC0xek0xNyAyNmgxdjFoLTF6TTIwIDI2aDF2MWgtMXpNMjEgMjZoMXYxaC0xek0yMiAyNmgxdjFoLTF6TTIzIDI2aDF2MWgtMXpNMjQgMjZoMXYxaC0xek0yNiAyNmgxdjFoLTF6TTI3IDI2aDF2MWgtMXpNMjggMjZoMXYxaC0xek0yOSAyNmgxdjFoLTF6TTMyIDI2aDF2MWgtMXpNMzMgMjZoMXYxaC0xek0zNiAyNmgxdjFoLTF6TTIgMjdoMXYxaC0xek00IDI3aDF2MWgtMXpNNiAyN2gxdjFoLTF6TTcgMjdoMXYxaC0xek05IDI3aDF2MWgtMXpNMTAgMjdoMXYxaC0xek0xMSAyN2gxdjFoLTF6TTEyIDI3aDF2MWgtMXpNMTQgMjdoMXYxaC0xek0xNyAyN2gxdjFoLTF6TTE4IDI3aDF2MWgtMXpNMTkgMjdoMXYxaC0xek0yMyAyN2gxdjFoLTF6TTI1IDI3aDF2MWgtMXpNMjYgMjdoMXYxaC0xek0zMCAyN2gxdjFoLTF6TTMzIDI3aDF2MWgtMXpNMzYgMjdoMXYxaC0xek0yIDI4aDF2MWgtMXpNNSAyOGgxdjFoLTF6TTcgMjhoMXYxaC0xek04IDI4aDF2MWgtMXpNMTEgMjhoMXYxaC0xek0xMiAyOGgxdjFoLTF6TTE1IDI4aDF2MWgtMXpNMTkgMjhoMXYxaC0xek0yMiAyOGgxdjFoLTF6TTI0IDI4aDF2MWgtMXpNMjggMjhoMXYxaC0xek0yOSAyOGgxdjFoLTF6TTMwIDI4aDF2MWgtMXpNMzIgMjhoMXYxaC0xek0zNyAyOGgxdjFoLTF6TTM4IDI4aDF2MWgtMXpNMiAyOWgxdjFoLTF6TTQgMjloMXYxaC0xek02IDI5aDF2MWgtMXpNNyAyOWgxdjFoLTF6TTkgMjloMXYxaC0xek0xMyAyOWgxdjFoLTF6TTE0IDI5aDF2MWgtMXpNMTggMjloMXYxaC0xek0yMyAyOWgxdjFoLTF6TTI0IDI5aDF2MWgtMXpNMjggMjloMXYxaC0xek0zMSAyOWgxdjFoLTF6TTMyIDI5aDF2MWgtMXpNMzMgMjloMXYxaC0xek0zNyAyOWgxdjFoLTF6TTM4IDI5aDF2MWgtMXpNMiAzMGgxdjFoLTF6TTQgMzBoMXYxaC0xek03IDMwaDF2MWgtMXpNOCAzMGgxdjFoLTF6TTkgMzBoMXYxaC0xek0xNiAzMGgxdjFoLTF6TTE5IDMwaDF2MWgtMXpNMjQgMzBoMXYxaC0xek0yNiAzMGgxdjFoLTF6TTI3IDMwaDF2MWgtMXpNMjggMzBoMXYxaC0xek0yOSAzMGgxdjFoLTF6TTMwIDMwaDF2MWgtMXpNMzEgMzBoMXYxaC0xek0zMiAzMGgxdjFoLTF6TTMzIDMwaDF2MWgtMXpNMzQgMzBoMXYxaC0xek0zNSAzMGgxdjFoLTF6TTM2IDMwaDF2MWgtMXpNMzggMzBoMXYxaC0xek0xMCAzMWgxdjFoLTF6TTExIDMxaDF2MWgtMXpNMTUgMzFoMXYxaC0xek0xNiAzMWgxdjFoLTF6TTE4IDMxaDF2MWgtMXpNMTkgMzFoMXYxaC0xek0yMSAzMWgxdjFoLTF6TTIyIDMxaDF2MWgtMXpNMjMgMzFoMXYxaC0xek0yNSAzMWgxdjFoLTF6TTI3IDMxaDF2MWgtMXpNMjkgMzFoMXYxaC0xek0zMCAzMWgxdjFoLTF6TTM0IDMxaDF2MWgtMXpNMzUgMzFoMXYxaC0xek0yIDMyaDF2MWgtMXpNMyAzMmgxdjFoLTF6TTQgMzJoMXYxaC0xek01IDMyaDF2MWgtMXpNNiAzMmgxdjFoLTF6TTcgMzJoMXYxaC0xek04IDMyaDF2MWgtMXpNMTEgMzJoMXYxaC0xek0xMiAzMmgxdjFoLTF6TTEzIDMyaDF2MWgtMXpNMTQgMzJoMXYxaC0xek0xNyAzMmgxdjFoLTF6TTE4IDMyaDF2MWgtMXpNMTkgMzJoMXYxaC0xek0yMyAzMmgxdjFoLTF6TTI2IDMyaDF2MWgtMXpNMjcgMzJoMXYxaC0xek0yOCAzMmgxdjFoLTF6TTMwIDMyaDF2MWgtMXpNMzIgMzJoMXYxaC0xek0zNCAzMmgxdjFoLTF6TTM2IDMyaDF2MWgtMXpNMzcgMzJoMXYxaC0xek0zOCAzMmgxdjFoLTF6TTIgMzNoMXYxaC0xek04IDMzaDF2MWgtMXpNMTAgMzNoMXYxaC0xek0xMSAzM2gxdjFoLTF6TTEyIDMzaDF2MWgtMXpNMTMgMzNoMXYxaC0xek0xNiAzM2gxdjFoLTF6TTE3IDMzaDF2MWgtMXpNMTggMzNoMXYxaC0xek0xOSAzM2gxdjFoLTF6TTIwIDMzaDF2MWgtMXpNMjIgMzNoMXYxaC0xek0yMyAzM2gxdjFoLTF6TTI0IDMzaDF2MWgtMXpNMjYgMzNoMXYxaC0xek0yOCAzM2gxdjFoLTF6TTMwIDMzaDF2MWgtMXpNMzQgMzNoMXYxaC0xek0zNSAzM2gxdjFoLTF6TTM4IDMzaDF2MWgtMXpNMiAzNGgxdjFoLTF6TTQgMzRoMXYxaC0xek01IDM0aDF2MWgtMXpNNiAzNGgxdjFoLTF6TTggMzRoMXYxaC0xek0xMCAzNGgxdjFoLTF6TTE3IDM0aDF2MWgtMXpNMTggMzRoMXYxaC0xek0yMyAzNGgxdjFoLTF6TTI1IDM0aDF2MWgtMXpNMjYgMzRoMXYxaC0xek0yNyAzNGgxdjFoLTF6TTI4IDM0aDF2MWgtMXpNMjkgMzRoMXYxaC0xek0zMCAzNGgxdjFoLTF6TTMxIDM0aDF2MWgtMXpNMzIgMzRoMXYxaC0xek0zMyAzNGgxdjFoLTF6TTM0IDM0aDF2MWgtMXpNMzYgMzRoMXYxaC0xek0yIDM1aDF2MWgtMXpNNCAzNWgxdjFoLTF6TTUgMzVoMXYxaC0xek02IDM1aDF2MWgtMXpNOCAzNWgxdjFoLTF6TTEwIDM1aDF2MWgtMXpNMTEgMzVoMXYxaC0xek0xNSAzNWgxdjFoLTF6TTE3IDM1aDF2MWgtMXpNMjAgMzVoMXYxaC0xek0yMiAzNWgxdjFoLTF6TTI0IDM1aDF2MWgtMXpNMjUgMzVoMXYxaC0xek0yNyAzNWgxdjFoLTF6TTI4IDM1aDF2MWgtMXpNMjkgMzVoMXYxaC0xek0zMCAzNWgxdjFoLTF6TTMxIDM1aDF2MWgtMXpNMzIgMzVoMXYxaC0xek0zNCAzNWgxdjFoLTF6TTM4IDM1aDF2MWgtMXpNMiAzNmgxdjFoLTF6TTQgMzZoMXYxaC0xek01IDM2aDF2MWgtMXpNNiAzNmgxdjFoLTF6TTggMzZoMXYxaC0xek0xMCAzNmgxdjFoLTF6TTExIDM2aDF2MWgtMXpNMTIgMzZoMXYxaC0xek0xNCAzNmgxdjFoLTF6TTE3IDM2aDF2MWgtMXpNMTggMzZoMXYxaC0xek0yMSAzNmgxdjFoLTF6TTIzIDM2aDF2MWgtMXpNMjYgMzZoMXYxaC0xek0yNyAzNmgxdjFoLTF6TTMwIDM2aDF2MWgtMXpNMzcgMzZoMXYxaC0xek0zOCAzNmgxdjFoLTF6TTIgMzdoMXYxaC0xek04IDM3aDF2MWgtMXpNMTEgMzdoMXYxaC0xek0xMiAzN2gxdjFoLTF6TTE0IDM3aDF2MWgtMXpNMTUgMzdoMXYxaC0xek0xNyAzN2gxdjFoLTF6TTIwIDM3aDF2MWgtMXpNMjEgMzdoMXYxaC0xek0yMiAzN2gxdjFoLTF6TTIzIDM3aDF2MWgtMXpNMjQgMzdoMXYxaC0xek0yNSAzN2gxdjFoLTF6TTI2IDM3aDF2MWgtMXpNMjggMzdoMXYxaC0xek0yOSAzN2gxdjFoLTF6TTMwIDM3aDF2MWgtMXpNMzEgMzdoMXYxaC0xek0zNCAzN2gxdjFoLTF6TTM4IDM3aDF2MWgtMXpNMiAzOGgxdjFoLTF6TTMgMzhoMXYxaC0xek00IDM4aDF2MWgtMXpNNSAzOGgxdjFoLTF6TTYgMzhoMXYxaC0xek03IDM4aDF2MWgtMXpNOCAzOGgxdjFoLTF6TTEwIDM4aDF2MWgtMXpNMTIgMzhoMXYxaC0xek0xNCAzOGgxdjFoLTF6TTE3IDM4aDF2MWgtMXpNMTkgMzhoMXYxaC0xek0yMSAzOGgxdjFoLTF6TTIyIDM4aDF2MWgtMXpNMjQgMzhoMXYxaC0xek0yNiAzOGgxdjFoLTF6TTI3IDM4aDF2MWgtMXpNMjggMzhoMXYxaC0xek0zMSAzOGgxdjFoLTF6TTM0IDM4aDF2MWgtMXpNMzYgMzhoMXYxaC0xek0zNyAzOGgxdjFoLTF6TTM4IDM4aDF2MWgtMXoiIGZpbGw9IiMxMjE2MUMiLz48L3N2Zz4=" alt="QR code for the cold-store monitor builder"><p>Scan to open the <b>builder</b>. Pick four options, then read out your <b>team name</b> and <b>design code</b>.</p></div>
+  </header>
+
+  <form class="entry" id="entry" hidden>
+    <label for="team">Team name<input id="team" maxlength="40" autocomplete="off" placeholder="e.g. Table 3"></label>
+    <label for="code">Design code<input id="code" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="1111"></label>
+    <button class="primary" type="submit">Add to wall</button>
+    <div class="msg" id="msg" aria-live="polite">Codes are four digits, one per step: sensor 1–3, link 1–4, device 1–3, who acts 1–4.</div>
+  </form>
+  
+
+  <div class="tools">
+    <div class="sort" role="group" aria-label="Sort designs"><span>Sort by</span>
+      <button type="button" data-sort="above" aria-pressed="true">Time above 8 °C</button>
+      <button type="button" data-sort="cost" aria-pressed="false">Kit cost</button>
+      <button type="button" data-sort="false" aria-pressed="false">False alarms</button>
+      <button type="button" data-sort="batt" aria-pressed="false">Battery life</button>
+      <button type="button" data-sort="at" aria-pressed="false">Newest</button>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" id="dl">Download results (CSV)</button><div id="clearbox" hidden><button type="button" id="clear">Clear the wall</button></div></div>
+  </div>
+
+  <div class="grid" id="grid"></div>
+</div>
+
+<script>
+// Cold-store monitor model. Typical figures for teaching, not a quote.
+const OPT = {
+  sensor: [
+    { id: 1, name: "Basic probe", sub: "DS18B20 on a lead, ±0.5 °C", cost: 4, acc: 0.5, door: false },
+    { id: 2, name: "Calibrated probe", sub: "Lab-grade digital probe, ±0.1 °C, with a calibration certificate", cost: 35, acc: 0.1, door: false },
+    { id: 3, name: "Probe + door switch", sub: "DS18B20 plus a magnetic contact on the door", cost: 9, acc: 0.5, door: true },
+  ],
+  link: [
+    { id: 1, name: "Wi-Fi", sub: "Built into the ESP32; uses the site network", cost: 0, run: 0, batt: [0.5, 3, 5], cover: "poor" },
+    { id: 2, name: "Zigbee", sub: "Low-power mesh to a coordinator nearby", cost: 12, run: 0, batt: [6, 18, 24], cover: "patchy" },
+    { id: 3, name: "LoRaWAN", sub: "Long range, tiny messages, one gateway for the site", cost: 27, run: 0, batt: [8, 30, 36], cover: "good" },
+    { id: 4, name: "NB-IoT", sub: "Cellular IoT with its own SIM", cost: 12, run: 12, batt: [3, 36, 48], cover: "good" },
+  ],
+  edge: [
+    { id: 1, name: "Send everything", sub: "A reading every minute; the server decides", detect: 1, heartbeat: true, falseBase: 6 },
+    { id: 2, name: "Alert on threshold", sub: "A reading every 10 min; sends at once if over the limit", detect: 1, heartbeat: false, falseBase: 6 },
+    { id: 3, name: "Anomaly model on the chip", sub: "Learns normal door and compressor cycles; sends exceptions plus an hourly heartbeat", detect: -25, heartbeat: true, falseBase: 1 },
+  ],
+  act: [
+    { id: 1, name: "Dashboard only", sub: "Someone looks at it in the morning", resp: null, cost: 0, run: 0 },
+    { id: 2, name: "Text a group", sub: "SMS to the lab’s shared list", resp: 60, cost: 0, run: 6 },
+    { id: 3, name: "On-call rota", sub: "Pages the on-call person, escalates after 15 min", resp: 15, cost: 0, run: 0 },
+    { id: 4, name: "Automatic + on-call", sub: "Switches to a backup cooler, then pages on-call (human on the loop)", resp: 3, cost: 220, run: 0 },
+  ],
+};
+const BOARD = 12; // ESP32 board and enclosure, £
+const FAIL = 120, CROSS = 170, MORNING = 480; // minutes after midnight: compressor fails 02:00, passes 8 °C at 02:50, staff arrive 08:00
+const tempAt = (m, actAt) => {
+  if (m < FAIL) return 4.6 + Math.sin(m / 23) * 0.35;
+  const base = 4.6 + Math.sin(FAIL / 23) * 0.35;
+  const rise = (t) => base + (12 - base) * (1 - Math.exp(-(t - FAIL) / 90));
+  if (actAt == null || m < actAt) return rise(m);
+  const peak = rise(actAt);
+  return Math.max(4.6, peak - (m - actAt) * 0.08);
+};
+const clock = (m) => { const h = Math.floor(m / 60), mm = Math.round(m % 60); return String(h).padStart(2, "0") + ":" + String(mm).padStart(2, "0"); };
+function evaluate(c) {
+  const s = OPT.sensor[c[0] - 1], l = OPT.link[c[1] - 1], e = OPT.edge[c[2] - 1], a = OPT.act[c[3] - 1];
+  const battMonths = l.batt[c[2] - 1];
+  const swaps = 12 / battMonths;
+  const cost = BOARD + s.cost + l.cost + a.cost;
+  const running = l.run + a.run + swaps * 3;
+  let falseAlarms = e.falseBase * (s.acc >= 0.5 ? 1.5 : 1) * (s.door ? 0.3 : 1);
+  const falseRaw = falseAlarms;
+  falseAlarms = Math.max(0, Math.round(falseAlarms));
+  const detectAt = CROSS + e.detect;
+  let actAt = a.resp == null ? MORNING : detectAt + a.resp;
+  actAt = Math.max(actAt, FAIL + 5);
+  const above = Math.max(0, Math.round(actAt - CROSS));
+  const flags = [];
+  if (l.cover === "poor") flags.push(["warn", "Wi-Fi often fails in basement cold rooms: readings can be lost without anyone noticing."]);
+  if (l.cover === "patchy") flags.push(["note", "Zigbee needs a mains-powered router within a few rooms."]);
+  if (battMonths < 2) flags.push(["warn", "Battery lasts about " + Math.round(battMonths * 4) + " weeks: this design really needs mains power."]);
+  if (!e.heartbeat) flags.push(["warn", "No heartbeat: if the node dies, silence looks the same as “all fine”."]);
+  if (a.resp == null) flags.push(["warn", "Nobody is told at night. The alarm waits for the morning."]);
+  if (s.acc >= 0.5 && !s.door) flags.push(["note", "±0.5 °C near an 8 °C limit: set the alert at 7.5 °C, or accept missed edges."]);
+  if (c[3] === 3) flags.push(["note", "Needs a staffed on-call rota and a clear escalation list."]);
+  if (c[3] === 4) flags.push(["good", "Contains the problem before a person is awake. The person still decides about the stock."]);
+  if (s.door) flags.push(["good", "The door switch tells a door left open from a failed compressor."]);
+  if (e.detect < 0) flags.push(["good", "Spots the compressor failing before the temperature crosses the limit."]);
+  if (l.run > 0) flags.push(["note", "SIM contract: about £" + l.run + " a year per fridge."]);
+  let verdict, tone;
+  if (above === 0) { verdict = "Stock stays within 2–8 °C."; tone = "good"; }
+  else if (above <= 30) { verdict = "Short excursion: report it and get the stock assessed."; tone = "warn"; }
+  else { verdict = "Long excursion: expect the stock to be quarantined."; tone = "bad"; }
+  const story = [
+    [FAIL, "Compressor fails. Temperature starts to rise."],
+    e.detect < 0 ? [detectAt, "Node spots the failure pattern and raises an alert."] : [CROSS, "Fridge passes 8 °C."],
+    e.detect < 0 ? [CROSS, actAt <= CROSS ? "Would have passed 8 °C here; it does not." : "Fridge passes 8 °C."] : [detectAt, a.resp == null ? "Reading reaches the dashboard. Nobody is looking." : "Alert sent."],
+    [actAt, a.resp == null ? "First person in sees the dashboard." : c[3] === 4 ? "Backup cooler takes over; on-call is paged." : "Someone acts."],
+  ].sort((x, y) => x[0] - y[0]);
+  return { s, l, e, a, falseRaw, cost, running, battMonths, falseAlarms, detectAt, actAt, above, flags, verdict, tone, story };
+}
+const fmtBatt = (m) => (m < 1 ? Math.round(m * 4) + " weeks" : m < 12 ? m + " months" : m % 12 === 0 ? m / 12 + (m === 12 ? " year" : " years") : (m / 12).toFixed(1) + " years");
+const fmtMins = (m) => (m === 0 ? "0 min" : m < 60 ? m + " min" : Math.floor(m / 60) + " h " + String(m % 60).padStart(2, "0") + " min");
+
+
+/*MODEL*/
+const $ = (id) => document.getElementById(id);
+const money = (n) => "£" + Math.round(n);
+let rows = [], sortKey = "above", canWrite = true;
+const KEY = "met-coldstore-wall-v1";
+const load = () => { try { const v = JSON.parse(localStorage.getItem(KEY) || "[]"); return Array.isArray(v) ? v.filter((r) => r && typeof r.team === "string" && valid(String(r.code))) : []; } catch { return []; } };
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(rows)); return true; } catch { return false; } };
+const EXAMPLE = { id: "example", team: "Example: last year’s build", code: "1111", example: true };
+const valid = (c) => /^[1-3][1-4][1-3][1-4]$/.test(c);
+function metrics(row) { const r = evaluate(row.code.split("").map(Number)); return r; }
+function sortRows(list) {
+  const key = { above: (r) => r.m.above, cost: (r) => r.m.cost, false: (r) => r.m.falseRaw, batt: (r) => -r.m.battMonths, at: (r) => -(r.at || 0) }[sortKey];
+  return list.slice().sort((a, b) => key(a) - key(b) || a.m.cost - b.m.cost);
+}
+function render() {
+  const g = $("grid"); g.innerHTML = "";
+  const list = rows.map((r) => ({ ...r, m: metrics(r) }));
+  if (!list.length) {
+    const e = document.createElement("div"); e.className = "empty";
+    e.innerHTML = "<b>No designs yet</b><span>Each pair’s design appears here as you add its team name and code. The dashed card shows what one looks like.</span>";
+    g.appendChild(e);
+    list.push({ ...EXAMPLE, m: metrics(EXAMPLE) });
+  }
+  const real = list.filter((r) => !r.example);
+  const bestOf = (f) => real.length > 1 ? Math.min(...real.map(f)) : null;
+  const best = { above: bestOf((r) => r.m.above), cost: bestOf((r) => r.m.cost), fa: bestOf((r) => r.m.falseRaw), batt: real.length > 1 ? Math.max(...real.map((r) => r.m.battMonths)) : null };
+  for (const r of sortRows(list)) {
+    const c = document.createElement("article"); c.className = "card" + (r.example ? " example" : "");
+    const m = r.m;
+    c.innerHTML = '<div class="top"><h3></h3><span class="cd"></span></div><ul class="picks"></ul><div class="ver"></div><div class="nums"></div><div class="best"></div>';
+    c.querySelector("h3").textContent = r.team;
+    c.querySelector(".cd").textContent = r.code;
+    const picks = c.querySelector(".picks");
+    for (const [k, o] of [["Sense", m.s], ["Connect", m.l], ["Device", m.e], ["3 am", m.a]]) { const li = document.createElement("li"); li.append(k + ": "); const b = document.createElement("b"); b.textContent = o.name; li.appendChild(b); picks.appendChild(li); }
+    const v = c.querySelector(".ver"); v.className = "ver tone-" + m.tone; v.textContent = m.verdict;
+    const nums = c.querySelector(".nums");
+    for (const [k, val] of [["Above 8 °C", fmtMins(m.above)], ["False alarms / month", m.falseRaw < 0.5 ? "under 1" : String(m.falseAlarms)], ["Kit per fridge", money(m.cost)], ["Battery", fmtBatt(m.battMonths)]]) { const d = document.createElement("div"); const kk = document.createElement("div"); kk.className = "k"; kk.textContent = k; const vv = document.createElement("div"); vv.className = "v"; vv.textContent = val; d.append(kk, vv); nums.appendChild(d); }
+    const bb = c.querySelector(".best");
+    if (!r.example) {
+      if (best.above !== null && m.above === best.above) bb.insertAdjacentHTML("beforeend", "<span>Safest</span>");
+      if (best.cost !== null && m.cost === best.cost) bb.insertAdjacentHTML("beforeend", "<span>Cheapest</span>");
+      if (best.fa !== null && m.falseRaw === best.fa) bb.insertAdjacentHTML("beforeend", "<span>Fewest false alarms</span>");
+      if (best.batt !== null && m.battMonths === best.batt) bb.insertAdjacentHTML("beforeend", "<span>Longest battery</span>");
+    }
+    if (canWrite && !r.example) { const x = document.createElement("button"); x.type = "button"; x.className = "x"; x.textContent = "Remove"; x.setAttribute("aria-label", "Remove " + r.team); x.onclick = () => { rows = rows.filter((y) => y.id !== r.id); save(); render(); }; c.appendChild(x); }
+    g.appendChild(c);
+  }
+}
+function say(text, err) { const m = $("msg"); m.textContent = text; m.className = "msg" + (err ? " err" : ""); }
+document.querySelectorAll("[data-sort]").forEach((b) => b.addEventListener("click", () => { sortKey = b.dataset.sort; document.querySelectorAll("[data-sort]").forEach((x) => x.setAttribute("aria-pressed", String(x === b))); render(); }));
+$("code").addEventListener("input", (e) => { e.target.value = e.target.value.replace(/\D/g, "").slice(0, 4); });
+$("entry").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const team = $("team").value.trim(), code = $("code").value.trim();
+  if (!team) return say("Add a team name first.", true);
+  if (!valid(code)) return say("That code isn’t valid. Use four digits: sensor 1–3, link 1–4, device 1–3, who acts 1–4.", true);
+  rows.push({ id: "d" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), team, code, at: Date.now() });
+  const ok = save(); render();
+  say(ok ? "Added " + team + "." : "Added " + team + ". This browser is not saving, so download the results before closing.", !ok);
+  $("team").value = ""; $("code").value = ""; $("team").focus();
+});
+$("clear").addEventListener("click", () => {
+  const box = $("clearbox"); box.innerHTML = "";
+  const w = document.createElement("div"); w.className = "confirm"; w.textContent = "Remove all " + rows.length + " designs?";
+  const yes = document.createElement("button"); yes.type = "button"; yes.className = "danger"; yes.textContent = "Clear";
+  const no = document.createElement("button"); no.type = "button"; no.textContent = "Keep";
+  const reset = () => { box.innerHTML = ""; const b = document.createElement("button"); b.type = "button"; b.id = "clear"; b.textContent = "Clear the wall"; box.appendChild(b); b.onclick = () => $("clear").dispatchEvent(new Event("click")); };
+  no.onclick = reset;
+  yes.onclick = () => { rows = []; save(); render(); reset(); };
+  w.append(yes, no); box.appendChild(w);
+});
+render();
+rows = load();
+$("entry").hidden = false; $("clearbox").hidden = false;
+$("dl").addEventListener("click", () => {
+  const esc = (v) => '"' + String(v).replace(/"/g, '""') + '"';
+  const head = ["team", "code", "sensor", "link", "device", "who_acts", "minutes_above_8C", "false_alarms_month", "kit_cost_gbp", "battery_months", "added"];
+  const lines = [head.join(",")].concat(rows.map((r) => { const m = metrics(r); return [r.team, r.code, m.s.name, m.l.name, m.e.name, m.a.name, m.above, m.falseAlarms, Math.round(m.cost), m.battMonths, new Date(r.at).toISOString()].map(esc).join(","); }));
+  const url = URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/csv" }));
+  const a = document.createElement("a"); a.href = url; a.download = "cold-store-designs-" + new Date().toISOString().slice(0, 10) + ".csv"; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+});
+render();
+</script>
+</body>
+</html>
