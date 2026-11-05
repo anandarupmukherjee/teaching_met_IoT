@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>M5Stack Flight Twin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#1A1F26;--mute:#5F6B7A;--line:#D7DCE2;--card:rgba(255,255,255,.88);--teal:#0F7F8C;--amber:#D97F00;--red:#C2412D;--bg:#EAF1F7}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,sans-serif}
+#scene{position:fixed;inset:0}
+header{position:fixed;top:0;left:0;right:0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 20px;z-index:2}
+h1{font:700 22px "Space Grotesk",sans-serif;margin:0 auto 0 0;letter-spacing:-.01em}
+h1 small{display:block;font:500 13px Inter,sans-serif;color:var(--mute);letter-spacing:0}
+button{font:600 14px Inter,sans-serif;border:1px solid var(--line);background:#fff;color:var(--ink);padding:9px 14px;border-radius:999px;cursor:pointer}
+button.primary{background:var(--teal);border-color:var(--teal);color:#fff}
+button:disabled{opacity:.45;cursor:default}
+.chip{font:600 13px Inter,sans-serif;padding:6px 12px;border-radius:999px;background:#fff;border:1px solid var(--line);display:flex;align-items:center;gap:8px}
+.dot{width:9px;height:9px;border-radius:50%;background:#8A97A6}
+.panel{position:fixed;z-index:2;background:var(--card);backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+#att{left:20px;bottom:20px;width:250px}
+#vib{right:20px;bottom:20px;width:340px}
+.lbl{font:600 11px Inter,sans-serif;text-transform:uppercase;letter-spacing:.08em;color:var(--mute)}
+.row{display:flex;justify-content:space-between;align-items:baseline;margin-top:8px}
+.big{font:700 26px "Space Grotesk",sans-serif;font-variant-numeric:tabular-nums}
+.unit{font-size:13px;color:var(--mute);margin-left:3px}
+canvas.chart{display:block;width:100%;height:70px;margin-top:8px}
+#state{font:700 13px Inter,sans-serif;padding:3px 10px;border-radius:999px;background:#E3F2F3;color:var(--teal)}
+#help{position:fixed;z-index:3;inset:0;display:none;align-items:center;justify-content:center;background:rgba(26,31,38,.35)}
+#help .box{background:#fff;border-radius:16px;max-width:560px;margin:16px;padding:22px 26px;line-height:1.5;font-size:15px;max-height:85vh;overflow:auto}
+#help h2{font:700 20px "Space Grotesk",sans-serif;margin:0 0 8px}
+#help ol{padding-left:20px;margin:8px 0}
+code{background:#F3F5F8;padding:1px 5px;border-radius:4px;font-size:13px}
+#msg{position:fixed;z-index:2;top:74px;left:50%;transform:translateX(-50%);font-size:14px;color:var(--mute);text-align:center;padding:0 16px}
+@media (max-width:760px){#att{left:12px;right:12px;width:auto;bottom:auto;top:112px;display:grid;grid-template-columns:repeat(3,1fr);gap:0 10px;padding:10px 14px}#att>.lbl,#att>.row:last-child{display:none}#att .row{flex-direction:column;align-items:flex-start;margin:0;font-size:13px}#att .big{font-size:22px}#vib{left:12px;right:12px;width:auto;bottom:12px}header{padding:10px 12px}#msg{display:none}}
+</style>
+</head>
+<body>
+<div id="scene"></div>
+<header>
+  <h1>Flight twin<small>M5Stack IMU → Wi‑Fi → MQTT → this page</small></h1>
+  <span class="chip"><span class="dot" id="ldot"></span><span id="link">Connecting…</span></span>
+  <button id="bDemo">Demo</button>
+  <button id="bZero">Zero</button>
+  <button id="bHelp">Setup</button>
+</header>
+<div id="msg">Tilt the M5Stack and the plane follows. Shake or tap it and the plane hits turbulence.</div>
+
+<section class="panel" id="att">
+  <div class="lbl">Orientation</div>
+  <div class="row"><span>Roll</span><span class="big" id="vRoll">0<span class="unit">°</span></span></div>
+  <div class="row"><span>Pitch</span><span class="big" id="vPitch">0<span class="unit">°</span></span></div>
+  <div class="row"><span>Heading</span><span class="big" id="vYaw">0<span class="unit">°</span></span></div>
+  <div class="row"><span class="lbl">Sample rate</span><span id="vRate">–</span></div>
+</section>
+
+<section class="panel" id="vib">
+  <div style="display:flex;justify-content:space-between;align-items:center"><span class="lbl">Vibration</span><span id="state">Calm</span></div>
+  <div class="row"><span>RMS (0.5 s)</span><span class="big" id="vRms">0<span class="unit">mg</span></span></div>
+  <canvas class="chart" id="cTrend"></canvas>
+  <div class="row"><span class="lbl">Spectrum 0–50 Hz</span><span id="vPeak">peak –</span></div>
+  <canvas class="chart" id="cSpec"></canvas>
+</section>
+
+<div id="help"><div class="box">
+  <h2>Set up the M5Stack (once)</h2>
+  <ol>
+    <li>Install the <b>Arduino IDE</b>. In Boards Manager add <b>M5Stack</b> (or <b>esp32 by Espressif</b>).</li>
+    <li>In Library Manager install <b>M5Unified</b> and <b>PubSubClient</b>.</li>
+    <li>Open <a href="firmware/m5_imu_stream/m5_imu_stream.ino">m5_imu_stream.ino</a> and fill in your Wi‑Fi name, password and a device id.</li>
+    <li>Pick your board (e.g. M5Core2, M5StickCPlus, M5CoreS3) and its USB port, then Upload. After that the USB cable is only for power.</li>
+    <li>The screen shows <b>Streaming</b> once it reaches the broker. This page then turns green: <b>Live</b>.</li>
+  </ol>
+  <p>The device publishes to the public broker <code>broker.hivemq.com</code> on topic <code>ifm-met/iiot/m5/<span id="hid">anand-m5</span>/imu</code>. Any browser anywhere can watch it. Use a different id with <code>?id=yourname</code>.</p>
+  <p><b>Zero</b> (or button A on the device) sets the current pose as level flight. Heading drifts slowly because the IMU has no compass, so press Zero again when it does.</p>
+  <p>Use a phone hotspot or a normal WPA2 network. Eduroam's enterprise login won't work. <b>Demo</b> plays simulated motion if the device isn't online.</p>
+  <button class="primary" id="bClose">Got it</button>
+</div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
+<script>
+// ---------- scene ----------
+const host=document.getElementById("scene");
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(2,devicePixelRatio));host.appendChild(renderer.domElement);
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(40,1,.1,500);
+camera.position.set(7,3.6,9);camera.lookAt(0,0,0);
+{ // sky gradient
+  const c=document.createElement("canvas");c.width=2;c.height=256;const x=c.getContext("2d");
+  const gr=x.createLinearGradient(0,0,0,256);gr.addColorStop(0,"#9CC7EA");gr.addColorStop(.55,"#DCEBF6");gr.addColorStop(1,"#F4F1EA");
+  x.fillStyle=gr;x.fillRect(0,0,2,256);scene.background=new THREE.CanvasTexture(c);
+}
+scene.fog=new THREE.Fog(0xE6EEF4,25,70);
+scene.add(new THREE.HemisphereLight(0xffffff,0x9AA7B4,.85));
+const sun=new THREE.DirectionalLight(0xffffff,.75);sun.position.set(6,10,4);scene.add(sun);
+const grid=new THREE.GridHelper(120,60,0xB7C3CF,0xCFD8E0);grid.position.y=-3.2;scene.add(grid);
+
+// clouds that stream past to give a sense of flight
+const clouds=[];const cloudMat=new THREE.MeshLambertMaterial({color:0xffffff,transparent:true,opacity:.9});
+for(let i=0;i<16;i++){const g=new THREE.Group();for(let j=0;j<4;j++){const s=new THREE.Mesh(new THREE.SphereGeometry(.7+Math.random()*.6,12,10),cloudMat);s.position.set(j*.9-1.3,Math.random()*.4,Math.random()*.6);g.add(s)}
+  const side=i%2?1:-1;g.position.set(side*(7+Math.random()*16),-2+Math.random()*5,-60+Math.random()*62);g.scale.setScalar(.6+Math.random()*.6);scene.add(g);clouds.push(g)}
+
+// airplane, nose along -Z, built from simple solids
+const M=(c,o={})=>new THREE.MeshStandardMaterial({color:c,roughness:.55,metalness:.1,...o});
+const plane=new THREE.Group(),body=new THREE.Group();plane.add(body);scene.add(plane);
+const fus=new THREE.Mesh(new THREE.LatheGeometry([[0,-2.6],[.18,-2.45],[.42,-1.9],[.5,-1],[.5,.8],[.36,1.9],[.14,2.6],[0,2.65]].map(p=>new THREE.Vector2(p[0],p[1])),28),M(0xF6F7F9));
+fus.rotation.x=Math.PI/2;body.add(fus);
+const stripe=new THREE.Mesh(new THREE.CylinderGeometry(.505,.505,.5,28,1,true),M(0x0F7F8C));stripe.rotation.x=Math.PI/2;stripe.position.z=.3;stripe.scale.set(1,1,1);body.add(stripe);
+const canopy=new THREE.Mesh(new THREE.SphereGeometry(.38,20,14,0,Math.PI*2,0,Math.PI/2),M(0x22303D,{roughness:.15,metalness:.5}));canopy.scale.set(.9,.8,1.8);canopy.position.set(0,.36,-1.1);body.add(canopy);
+const wingShape=new THREE.Shape();wingShape.moveTo(0,-.7);wingShape.lineTo(3.6,-.15);wingShape.lineTo(3.6,.35);wingShape.lineTo(0,.75);wingShape.lineTo(-3.6,.35);wingShape.lineTo(-3.6,-.15);wingShape.closePath();
+const wingGeo=new THREE.ExtrudeGeometry(wingShape,{depth:.09,bevelEnabled:false});
+const wing=new THREE.Mesh(wingGeo,M(0xE9ECF0));wing.rotation.x=Math.PI/2;wing.position.set(0,-.05,-.1);body.add(wing);
+for(const s of[-1,1]){const tip=new THREE.Mesh(new THREE.BoxGeometry(.08,.08,.5),M(s<0?0xC2412D:0x1E9E5A,{emissive:s<0?0x5a1208:0x0b4a26}));tip.position.set(3.6*s,-.06,.05);body.add(tip)}
+const tail=new THREE.Shape();tail.moveTo(0,-.35);tail.lineTo(1.3,0);tail.lineTo(1.3,.3);tail.lineTo(0,.4);tail.lineTo(-1.3,.3);tail.lineTo(-1.3,0);tail.closePath();
+const hstab=new THREE.Mesh(new THREE.ExtrudeGeometry(tail,{depth:.06,bevelEnabled:false}),M(0xE9ECF0));hstab.rotation.x=Math.PI/2;hstab.position.set(0,.1,2.2);body.add(hstab);
+const fin=new THREE.Shape();fin.moveTo(0,0);fin.lineTo(.9,0);fin.lineTo(.55,1.2);fin.lineTo(.2,1.2);fin.closePath();
+const vfin=new THREE.Mesh(new THREE.ExtrudeGeometry(fin,{depth:.06,bevelEnabled:false}),M(0x0F7F8C));vfin.rotation.y=-Math.PI/2;vfin.position.set(-.03,.25,1.6);body.add(vfin);
+const spinner=new THREE.Mesh(new THREE.ConeGeometry(.17,.35,18),M(0xD97F00));spinner.rotation.x=-Math.PI/2;spinner.position.z=-2.78;body.add(spinner);
+const prop=new THREE.Group();prop.position.z=-2.68;body.add(prop);
+for(const a of[0,Math.PI]){const b=new THREE.Mesh(new THREE.BoxGeometry(.13,1.05,.04),M(0x3A4350));b.position.y=Math.cos(a)*.55;b.rotation.z=a;prop.add(b);
+  const t=new THREE.Mesh(new THREE.BoxGeometry(.135,.16,.045),M(0xF0A23B));t.position.y=Math.cos(a)*1.0;prop.add(t)}
+const disc=new THREE.Mesh(new THREE.CircleGeometry(1.1,40),new THREE.MeshBasicMaterial({color:0x3A4350,transparent:true,opacity:0}));disc.position.z=-2.66;body.add(disc);
+// turbulence streaks off the wing tips
+const streaks=[];for(const s of[-1,1])for(let i=0;i<3;i++){const l=new THREE.Mesh(new THREE.BoxGeometry(.025,.025,2.2),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0}));l.position.set(3.65*s,-.05+(i-1)*.12,1.4);plane.add(l);streaks.push(l)}
+// shadow under the plane
+const shadow=new THREE.Mesh(new THREE.CircleGeometry(3,32),new THREE.MeshBasicMaterial({color:0x5F6B7A,transparent:true,opacity:.12}));shadow.rotation.x=-Math.PI/2;shadow.position.y=-3.19;shadow.scale.set(1.3,.6,1);scene.add(shadow);
+
+function resize(){const w=innerWidth,h=innerHeight;renderer.setSize(w,h);camera.aspect=w/h;camera.position.set(w<760?9:7,3.6,w<760?13:9);camera.lookAt(0,w<760?-.6:0,0);camera.updateProjectionMatrix()}
+addEventListener("resize",resize);resize();
+
+// ---------- sensor fusion (Madgwick, accel + gyro) ----------
+let q=[1,0,0,0];const BETA=.08;
+function madgwick(gx,gy,gz,ax,ay,az,dt){
+  let [q0,q1,q2,q3]=q;
+  let qd0=.5*(-q1*gx-q2*gy-q3*gz),qd1=.5*(q0*gx+q2*gz-q3*gy),qd2=.5*(q0*gy-q1*gz+q3*gx),qd3=.5*(q0*gz+q1*gy-q2*gx);
+  const n=Math.hypot(ax,ay,az);
+  if(n>0.05){ax/=n;ay/=n;az/=n;
+    const _2q0=2*q0,_2q1=2*q1,_2q2=2*q2,_2q3=2*q3,_4q0=4*q0,_4q1=4*q1,_4q2=4*q2,_8q1=8*q1,_8q2=8*q2,q0q0=q0*q0,q1q1=q1*q1,q2q2=q2*q2,q3q3=q3*q3;
+    let s0=_4q0*q2q2+_2q2*ax+_4q0*q1q1-_2q1*ay,s1=_4q1*q3q3-_2q3*ax+4*q0q0*q1-_2q0*ay-_4q1+_8q1*q1q1+_8q1*q2q2+_4q1*az,
+        s2=4*q0q0*q2+_2q0*ax+_4q2*q3q3-_2q3*ay-_4q2+_8q2*q1q1+_8q2*q2q2+_4q2*az,s3=4*q1q1*q3-_2q1*ax+4*q2q2*q3-_2q2*ay;
+    const sn=Math.hypot(s0,s1,s2,s3)||1;
+    // trust gravity less while the device is being shaken
+    const b=Math.abs(n-1)>.25?BETA*.1:BETA;
+    qd0-=b*s0/sn;qd1-=b*s1/sn;qd2-=b*s2/sn;qd3-=b*s3/sn}
+  q0+=qd0*dt;q1+=qd1*dt;q2+=qd2*dt;q3+=qd3*dt;const qn=Math.hypot(q0,q1,q2,q3);q=[q0/qn,q1/qn,q2/qn,q3/qn]}
+// device frame (x right, y forward along the screen, z out of screen) → three.js (x right, y up, -z forward)
+const toThree=()=>new THREE.Quaternion(q[1],q[3],-q[2],q[0]);
+let zeroQ=new THREE.Quaternion();
+function zero(){zeroQ=toThree().invert()}
+
+// ---------- vibration ----------
+const N=128,ring=new Float32Array(N);let ri=0,lp=[0,0,1],fill=0;
+const FS=100;          // the device samples at a fixed 100 Hz
+const trend=[];let rms=0,peakF=0,spec=new Float32Array(N/2),rate=100;
+function vibSample(ax,ay,az){
+  const k=.02;lp=[lp[0]+(ax-lp[0])*k,lp[1]+(ay-lp[1])*k,lp[2]+(az-lp[2])*k];       // slow gravity estimate
+  const h=Math.hypot(ax-lp[0],ay-lp[1],az-lp[2]);                                   // what's left is vibration
+  ring[ri]=h;ri=(ri+1)%N;fill=Math.min(N,fill+1)}
+function vibStats(){
+  const W=Math.min(fill,FS/2)||1;let s=0;for(let i=1;i<=W;i++){const v=ring[(ri-i+N)%N];s+=v*v}rms=Math.sqrt(s/W)*1000;
+  // DFT of the high-passed axis magnitude, hann window
+  const x=new Float32Array(N);let mean=0;for(let i=0;i<N;i++){x[i]=ring[(ri+i)%N];mean+=x[i]}mean/=N;
+  for(let i=0;i<N;i++)x[i]=(x[i]-mean)*(.5-.5*Math.cos(2*Math.PI*i/(N-1)));
+  let best=0,bi=0;for(let k=1;k<N/2;k++){let re=0,im=0;for(let i=0;i<N;i++){const a=2*Math.PI*k*i/N;re+=x[i]*Math.cos(a);im-=x[i]*Math.sin(a)}const m=Math.hypot(re,im)*1000/N*4;spec[k]=spec[k]*.6+m*.4;if(spec[k]>best){best=spec[k];bi=k}}
+  peakF=best>3?bi*FS/N:0;
+  trend.push(rms);if(trend.length>150)trend.shift()}
+
+// ---------- input: MQTT over WebSockets, or demo ----------
+const P=new URLSearchParams(location.search);
+const DEV=(P.get("id")||"anand-m5").replace(/[^A-Za-z0-9_-]/g,"");
+const BROKER=P.get("broker")||"wss://broker.hivemq.com:8884/mqtt";
+const BASE="ifm-met/iiot/m5/"+DEV+"/";
+let demo=false,samples=0,lastRateT=performance.now(),lastSample=0,brokerUp=false,devOnline=null;
+const $=id=>document.getElementById(id);
+$("hid").textContent=DEV;
+function setLink(t,c){$("link").textContent=t;$("ldot").style.background=c}
+const D2R=Math.PI/180;
+function feed(ax,ay,az,gx,gy,gz){madgwick(gx*D2R,gy*D2R,gz*D2R,ax,ay,az,.01);vibSample(ax,ay,az);samples++;lastSample=performance.now()}
+let firstData=true;
+const client=mqtt.connect(BROKER,{clientId:"flighttwin-"+Math.random().toString(16).slice(2,10),clean:true,reconnectPeriod:3000,connectTimeout:8000});
+client.on("connect",()=>{brokerUp=true;client.subscribe(BASE+"#")});
+client.on("close",()=>{brokerUp=false});client.on("offline",()=>{brokerUp=false});client.on("error",()=>{});
+client.on("message",(topic,msg)=>{
+  const m=msg.toString(),k=topic.slice(BASE.length);
+  if(k==="status"){devOnline=m==="online";return}
+  if(k==="cmd"){if(m==="zero")zero();return}
+  if(k!=="imu"||demo)return;
+  for(const s of m.split(";")){const v=s.split(",").map(Number);if(v.length>=6&&!v.some(isNaN))feed(v[0],v[1],v[2],v[3],v[4],v[5])}
+  if(firstData){firstData=false;setTimeout(zero,1200)}   // first time we hear the device, call its pose level
+});
+function linkState(now){
+  if(demo)return setLink("Demo data","#D97F00");
+  if(!brokerUp)return setLink("Connecting to broker…","#8A97A6");
+  if(now-lastSample<1500)return setLink("Live · "+DEV,"#1E9E5A");
+  setLink(devOnline===false?"Device offline":"Waiting for "+DEV+"…","#C9A227")}
+$("bZero").onclick=zero;
+$("bHelp").onclick=()=>$("help").style.display="flex";$("bClose").onclick=()=>$("help").style.display="none";
+$("help").onclick=e=>{if(e.target.id==="help")$("help").style.display="none"};
+
+// demo: gentle banking and climbing, with a turbulence burst every few seconds (an 18 Hz buzz plus knocks)
+let demoT=0,demoTimer=null;
+const qmul=(a,b)=>[a[0]*b[0]-a[1]*b[1]-a[2]*b[2]-a[3]*b[3],a[0]*b[1]+a[1]*b[0]+a[2]*b[3]-a[3]*b[2],a[0]*b[2]-a[1]*b[3]+a[2]*b[0]+a[3]*b[1],a[0]*b[3]+a[1]*b[2]-a[2]*b[1]+a[3]*b[0]];
+const qax=(i,a)=>{const r=[Math.cos(a/2),0,0,0];r[i]=Math.sin(a/2);return r};
+function startDemo(){demo=true;$("bDemo").textContent="Stop demo";zeroQ=new THREE.Quaternion();
+  demoTimer=setInterval(()=>{for(let s=0;s<5;s++){demoT+=.01;const t=demoT;
+    const roll=.55*Math.sin(t*.45),pitch=.22*Math.sin(t*.31+1),yaw=.35*Math.sin(t*.12);
+    q=qmul(qmul(qax(3,yaw),qax(1,pitch)),qax(2,roll));                 // device frame: z up, x pitch, y roll
+    const burst=Math.max(0,Math.sin(t*.7))**8,buzz=burst*.35*Math.sin(2*Math.PI*18*t)+burst*.12*(Math.random()-.5)+.004*(Math.random()-.5);
+    vibSample(buzz*.6,buzz*.3,1+buzz);samples++}},50)}
+function stopDemo(){demo=false;clearInterval(demoTimer);$("bDemo").textContent="Demo";q=[1,0,0,0];zeroQ=new THREE.Quaternion()}
+$("bDemo").onclick=()=>demo?stopDemo():startDemo();
+if(P.get("demo")==="1")startDemo();
+if(P.get("kiosk")==="1"){$("bHelp").style.display="none";$("msg").style.display="none"}
+
+// ---------- charts ----------
+function chart(cv,data,max,color,bars){
+  const r=Math.min(2,devicePixelRatio),w=cv.clientWidth,h=cv.clientHeight;if(cv.width!==w*r){cv.width=w*r;cv.height=h*r}
+  const g=cv.getContext("2d");g.setTransform(r,0,0,r,0,0);g.clearRect(0,0,w,h);
+  g.strokeStyle="#E3E7EC";g.lineWidth=1;for(const f of[.5,1]){g.beginPath();g.moveTo(0,h*f-.5);g.lineTo(w,h*f-.5);g.stroke()}
+  if(bars){const n=data.length-1,bw=w/n;for(let k=1;k<=n;k++){const v=Math.min(1,data[k]/max);g.fillStyle=color;g.fillRect((k-1)*bw+1,h-v*h,Math.max(1,bw-2),v*h)}
+    g.fillStyle="#5F6B7A";g.font="10px Inter,sans-serif";g.fillText("0",1,h-3);g.textAlign="right";g.fillText(FS/2+" Hz",w-1,h-3);g.textAlign="left";return}
+  g.beginPath();data.forEach((v,i)=>{const x=i/(150-1)*w,y=h-Math.min(1,v/max)*h;i?g.lineTo(x,y):g.moveTo(x,y)});g.strokeStyle=color;g.lineWidth=2;g.stroke();
+  g.fillStyle="#5F6B7A";g.font="10px Inter,sans-serif";g.fillText(max+" mg",2,10)}
+
+// ---------- loop ----------
+let last=performance.now(),propA=0,shake=0,statT=0,flyT=0;
+const tq=new THREE.Quaternion(),jit=new THREE.Euler();
+function frame(now){
+  const dt=Math.min(.05,(now-last)/1000);last=now;flyT+=dt;
+  if(now-lastRateT>1000){const r=samples*1000/(now-lastRateT);if(r>5)rate=Math.max(20,Math.min(400,r));$("vRate").textContent=r>1?Math.round(r)+" Hz":"–";samples=0;lastRateT=now}
+  statT+=dt;if(statT>.1){statT=0;vibStats();
+    $("vRms").innerHTML=Math.round(rms)+'<span class="unit">mg</span>';$("vPeak").textContent=peakF?"peak "+peakF.toFixed(1)+" Hz":"peak –";
+    const st=rms>250?["Severe","#FBE3DE","#C2412D"]:rms>60?["Turbulence","#FDF0DC","#A35F00"]:["Calm","#E3F2F3","#0F7F8C"];
+    $("state").textContent=st[0];$("state").style.background=st[1];$("state").style.color=st[2];
+    const top=Math.max(100,Math.ceil(Math.max(...trend,1)/100)*100);chart($("cTrend"),trend,top,"#D97F00");chart($("cSpec"),spec,Math.max(40,Math.max(...spec)*1.1),"#0F7F8C",true)}
+  // orientation
+  tq.copy(zeroQ).multiply(toThree());plane.quaternion.slerp(tq,Math.min(1,dt*18));
+  const e=new THREE.Euler().setFromQuaternion(plane.quaternion,"YXZ");
+  $("vRoll").innerHTML=Math.round(-e.z/D2R)+'<span class="unit">°</span>';$("vPitch").innerHTML=Math.round(e.x/D2R)+'<span class="unit">°</span>';$("vYaw").innerHTML=Math.round(((-e.y/D2R)+360)%360)+'<span class="unit">°</span>';
+  // vibration effects: body shake, prop speed, streaks, camera buzz
+  const v=Math.min(1,rms/300);shake+= (v-shake)*Math.min(1,dt*8);
+  const a=shake*.09;body.position.set((Math.random()-.5)*a,(Math.random()-.5)*a*1.4,(Math.random()-.5)*a*.5);
+  jit.set((Math.random()-.5)*shake*.06,(Math.random()-.5)*shake*.03,(Math.random()-.5)*shake*.08);body.rotation.copy(jit);
+  wing.scale.z=1;wing.position.y=-.05+Math.sin(now*.06)*shake*.03;
+  linkState(now);
+  const live=demo||now-lastSample<1500;
+  propA+=dt*(live?18+shake*40:2);prop.rotation.z=propA;disc.material.opacity=live?.12+shake*.15:0;
+  streaks.forEach((s,i)=>{s.material.opacity=shake>.15?shake*.8*(.5+.5*Math.sin(now*.02+i)):0;s.scale.z=.6+shake*1.4});
+  camera.position.y=3.6+(Math.random()-.5)*shake*.05;
+  // world flows past
+  const speed=live?14:3;for(const c of clouds){c.position.z+=speed*dt;if(c.position.z>3){c.position.z=-60;c.position.x=(c.position.x>0?1:-1)*(7+Math.random()*16)}}
+  grid.position.z=(grid.position.z+speed*dt)%2;
+  renderer.render(scene,camera);requestAnimationFrame(frame)}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
