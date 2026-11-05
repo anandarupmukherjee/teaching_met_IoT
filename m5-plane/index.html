@@ -33,6 +33,9 @@ canvas.chart{display:block;width:100%;height:70px;margin-top:8px}
 #help h2{font:700 20px "Space Grotesk",sans-serif;margin:0 0 8px}
 #help ol{padding-left:20px;margin:8px 0}
 code{background:#F3F5F8;padding:1px 5px;border-radius:4px;font-size:13px}
+#hud{position:fixed;z-index:2;top:74px;left:50%;transform:translateX(-50%);display:none;gap:10px;align-items:center;font:600 14px Inter,sans-serif}
+#hud .chip b{font:700 18px 'Space Grotesk',sans-serif;font-variant-numeric:tabular-nums}
+#flash{position:fixed;inset:0;z-index:1;pointer-events:none;background:radial-gradient(circle,rgba(194,65,45,0) 40%,rgba(194,65,45,.45));opacity:0;transition:opacity .5s}
 #msg{position:fixed;z-index:2;top:74px;left:50%;transform:translateX(-50%);font-size:14px;color:var(--mute);text-align:center;padding:0 16px}
 @media (max-width:760px){#att{left:12px;right:12px;width:auto;bottom:auto;top:112px;display:grid;grid-template-columns:repeat(3,1fr);gap:0 10px;padding:10px 14px}#att>.lbl,#att>.row:last-child{display:none}#att .row{flex-direction:column;align-items:flex-start;margin:0;font-size:13px}#att .big{font-size:22px}#vib{left:12px;right:12px;width:auto;bottom:12px}header{padding:10px 12px}#msg{display:none}}
 </style>
@@ -42,10 +45,13 @@ code{background:#F3F5F8;padding:1px 5px;border-radius:4px;font-size:13px}
 <header>
   <h1>Flight twin<small>M5Stack IMU → Wi‑Fi → MQTT → this page</small></h1>
   <span class="chip"><span class="dot" id="ldot"></span><span id="link">Connecting…</span></span>
+  <button id="bTargets">Targets</button>
   <button id="bDemo">Demo</button>
   <button id="bZero">Zero</button>
   <button id="bHelp">Setup</button>
 </header>
+<div id="hud"><span class="chip">Hits <b id="hHits">0</b></span><span class="chip">Dodged <b id="hDodge">0</b></span><span class="chip"><span class="dot" id="adot"></span><span id="hAlarm">Alarm M5 offline</span></span></div>
+<div id="flash"></div>
 <div id="msg">Tilt the M5Stack and the plane follows. Shake or tap it and the plane hits turbulence.</div>
 
 <section class="panel" id="att">
@@ -188,6 +194,7 @@ client.on("message",(topic,msg)=>{
   const m=msg.toString(),k=topic.slice(BASE.length);
   if(k==="status"){devOnline=m==="online";return}
   if(k==="cmd"){if(m==="zero")zero();return}
+  if(k==="alarm"){alarmState=m;showAlarm();return}
   if(k!=="imu"||demo)return;
   for(const s of m.split(";")){const v=s.split(",").map(Number);if(v.length>=6&&!v.some(isNaN))feed(v[0],v[1],v[2],v[3],v[4],v[5])}
   if(firstData){firstData=false;setTimeout(zero,1200)}   // first time we hear the device, call its pose level
@@ -228,7 +235,7 @@ function chart(cv,data,max,color,bars){
 
 // ---------- loop ----------
 let last=performance.now(),propA=0,shake=0,statT=0,flyT=0;
-const tq=new THREE.Quaternion(),jit=new THREE.Euler();
+const tq=new THREE.Quaternion(),jit=new THREE.Euler(),camT=new THREE.Vector3();
 function frame(now){
   const dt=Math.min(.05,(now-last)/1000);last=now;flyT+=dt;
   if(now-lastRateT>1000){const r=samples*1000/(now-lastRateT);if(r>5)rate=Math.max(20,Math.min(400,r));$("vRate").textContent=r>1?Math.round(r)+" Hz":"–";samples=0;lastRateT=now}
@@ -247,15 +254,49 @@ function frame(now){
   jit.set((Math.random()-.5)*shake*.06,(Math.random()-.5)*shake*.03,(Math.random()-.5)*shake*.08);body.rotation.copy(jit);
   wing.scale.z=1;wing.position.y=-.05+Math.sin(now*.06)*shake*.03;
   linkState(now);
+  // steer: bank slides the plane sideways, pitch climbs or dives (only in Targets mode)
+  const tx=game?Math.max(-4,Math.min(4,-e.z*7)):0,ty=game?Math.max(-1.6,Math.min(2.2,e.x*6)):0;
+  plane.position.x+=(tx-plane.position.x)*Math.min(1,dt*4);plane.position.y+=(ty-plane.position.y)*Math.min(1,dt*4);
+  shadow.position.x=plane.position.x;
+  if(game)updateTargets(dt,now);
   const live=demo||now-lastSample<1500;
   propA+=dt*(live?18+shake*40:2);prop.rotation.z=propA;disc.material.opacity=live?.12+shake*.15:0;
   streaks.forEach((s,i)=>{s.material.opacity=shake>.15?shake*.8*(.5+.5*Math.sin(now*.02+i)):0;s.scale.z=.6+shake*1.4});
-  camera.position.y=3.6+(Math.random()-.5)*shake*.05;
+  if(game){camT.set(plane.position.x*.45,3.2+plane.position.y*.5,15);camera.position.lerp(camT,Math.min(1,dt*3));
+    camera.position.y+=(Math.random()-.5)*shake*.08;camera.lookAt(plane.position.x*.6,plane.position.y*.6,-10)}
+  else camera.position.y=3.6+(Math.random()-.5)*shake*.05;
   // world flows past
   const speed=live?14:3;for(const c of clouds){c.position.z+=speed*dt;if(c.position.z>3){c.position.z=-60;c.position.x=(c.position.x>0?1:-1)*(7+Math.random()*16)}}
   grid.position.z=(grid.position.z+speed*dt)%2;
   renderer.render(scene,camera);requestAnimationFrame(frame)}
 requestAnimationFrame(frame);
+
+// ---------- targets: incoming objects to dodge; a hit is published over MQTT for the alarm M5Stack ----------
+let game=false,hits=0,dodged=0,spawnT=0,alarmState=null;const targets=[],bursts=[];
+const tGeo=new THREE.IcosahedronGeometry(.55,0),tMat=new THREE.MeshStandardMaterial({color:0xD97F00,emissive:0x7a3a00,roughness:.4,flatShading:true});
+const rGeo=new THREE.TorusGeometry(.95,.06,8,32),rMat=new THREE.MeshBasicMaterial({color:0xC2412D,transparent:true,opacity:.8});
+function spawn(){const g=new THREE.Group();g.add(new THREE.Mesh(tGeo,tMat));const r=new THREE.Mesh(rGeo,rMat);g.add(r);
+  const aim=Math.random()<.65;   // most targets come at the plane, some stray
+  g.position.set(aim?plane.position.x+(Math.random()-.5)*2.5:(Math.random()-.5)*9,aim?plane.position.y+(Math.random()-.5)*1.5:-1.6+Math.random()*4,-75);
+  g.userData={v:16+Math.random()*10,spin:(Math.random()-.5)*4,ring:r};scene.add(g);targets.push(g)}
+function burst(p){for(let i=0;i<14;i++){const m=new THREE.Mesh(new THREE.TetrahedronGeometry(.18),new THREE.MeshBasicMaterial({color:i%2?0xC2412D:0xF0A23B,transparent:true}));
+  m.position.copy(p);m.userData={v:new THREE.Vector3((Math.random()-.5)*9,(Math.random()-.2)*7,(Math.random()-.5)*9),t:0};scene.add(m);bursts.push(m)}}
+function updateTargets(dt,now){
+  spawnT-=dt;if(spawnT<=0&&targets.length<4){spawn();spawnT=1+Math.random()*1.6}
+  for(let i=targets.length-1;i>=0;i--){const g=targets[i],z0=g.position.z;g.position.z+=g.userData.v*dt;g.rotation.x+=g.userData.spin*dt;g.rotation.y+=dt*2;g.userData.ring.rotation.z+=dt*3;
+    if(z0<0&&g.position.z>=0){const dx=Math.abs(g.position.x-plane.position.x),dy=Math.abs(g.position.y-plane.position.y);
+      if(dx<2.4&&dy<.85){onHit(g.position.clone());scene.remove(g);targets.splice(i,1);continue}else{dodged++;$("hDodge").textContent=dodged}}
+    if(g.position.z>14){scene.remove(g);targets.splice(i,1)}}
+  for(let i=bursts.length-1;i>=0;i--){const m=bursts[i];m.userData.t+=dt;m.userData.v.y-=12*dt;m.position.addScaledVector(m.userData.v,dt);m.material.opacity=1-m.userData.t/1.2;if(m.userData.t>1.2){scene.remove(m);bursts.splice(i,1)}}}
+function onHit(p){hits++;$("hHits").textContent=hits;burst(p);shake=1;
+  const f=$("flash");f.style.transition="none";f.style.opacity=1;requestAnimationFrame(()=>{f.style.transition="opacity .6s";f.style.opacity=0});
+  if(brokerUp)client.publish(BASE+"hit",JSON.stringify({n:hits,t:Date.now()}))}
+function showAlarm(){const on=alarmState==="sound on",off=alarmState==="sound off";
+  $("hAlarm").textContent=on?"Alarm M5 · sound on":off?"Alarm M5 · muted":"Alarm M5 offline";$("adot").style.background=on?"#1E9E5A":off?"#C9A227":"#8A97A6"}
+function setGame(on){game=on;$("bTargets").textContent=on?"Stop targets":"Targets";$("hud").style.display=on?"flex":"none";$("msg").style.display=on?"none":"";
+  if(!on){for(const g of targets)scene.remove(g);targets.length=0;plane.position.set(0,0,0);resize()}else{hits=0;dodged=0;$("hHits").textContent=0;$("hDodge").textContent=0}}
+$("bTargets").onclick=()=>setGame(!game);
+if(P.get("targets")==="1")setGame(true);
 </script>
 </body>
 </html>
